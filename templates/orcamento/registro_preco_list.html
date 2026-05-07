@@ -1,0 +1,469 @@
+{% extends 'base_orcamento.html' %}
+
+{% block title %}Licitações — Execução Orçamentária{% endblock %}
+
+{% block extra_head %}
+<style>
+  .tabela-registros-preco {
+    font-family: 'Open Sans', sans-serif;
+    table-layout: fixed;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .tabela-registros-preco thead th {
+    background-color: #f8f9fa !important;
+    border-bottom: 2px solid #dee2e6 !important;
+    font-size: 0.6rem !important;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    color: #495057;
+    padding: .75rem .4rem;
+    vertical-align: middle !important;
+    text-align: center;
+  }
+  .tabela-registros-preco tbody td {
+    padding: .45rem .4rem;
+    vertical-align: middle;
+    font-size: 0.7rem !important;
+    line-height: 1.25;
+    border-bottom: 1px solid #eee;
+  }
+  .tabela-registros-preco tbody tr:hover {
+    background-color: #fcfdfe;
+  }
+  #tabela-registros-preco th.sortable {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  #tabela-registros-preco th.sortable:hover {
+    background-color: #e9ecef !important;
+  }
+  #tabela-registros-preco th.sortable .sort-icon {
+    font-size: .6rem;
+    opacity: .35;
+    margin-left: 3px;
+  }
+  #tabela-registros-preco th.sortable.asc .sort-icon::after {
+    content: '▲';
+    opacity: 1;
+    color: #0d6efd;
+  }
+  #tabela-registros-preco th.sortable.desc .sort-icon::after {
+    content: '▼';
+    opacity: 1;
+    color: #0d6efd;
+  }
+  #tabela-registros-preco th.sortable:not(.asc):not(.desc) .sort-icon::after {
+    content: '⇅';
+  }
+  .col-pregao { font-weight: 600; color: #212529; }
+  .col-material { font-weight: 500; }
+  .material-clamp {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.25;
+    max-height: 3.75em;
+    cursor: help;
+  }
+  .material-full-tooltip .tooltip-inner {
+    max-width: 620px;
+    text-align: left;
+    font-size: .78rem;
+    line-height: 1.35;
+    padding: .6rem .75rem;
+  }
+  .col-numero, .col-money { font-family: 'Open Sans', sans-serif; }
+  .badge-origem, .badge-situacao {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    max-width: 100%;
+    font-size: .58rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+    padding: 2px 7px;
+    border-radius: 4px;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .badge-origem { margin-top: .22rem; }
+  .badge-origem-irp { background: #e7f1ff; color: #084298; }
+  .badge-origem-sipac { background: #e9ecef; color: #343a40; }
+  .badge-vigente { background: #d1e7dd; color: #0a3622; }
+  .badge-a-vencer { background: #fff3cd; color: #664d03; }
+  .badge-vencido { background: #f8d7da; color: #58151c; }
+  .badge-sem-validade { background: #f8f9fa; color: #495057; border: 1px solid #dee2e6; }
+  .registro-muted {
+    color: #6c757d;
+    font-size: .64rem;
+  }
+  .registro-overview-grid {
+    display: grid;
+    grid-template-columns: minmax(170px, 1fr) minmax(170px, 1fr) minmax(520px, 3.2fr);
+    gap: 1rem;
+    align-items: stretch;
+    margin-bottom: 1rem;
+  }
+  .registro-overview-grid .card {
+    width: 100%;
+    height: 100%;
+    min-height: 112px;
+  }
+  .registro-kpi-card .card-body {
+    padding: .65rem .9rem .7rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+  .registro-kpi-label {
+    color: #6c757d;
+    font-size: .58rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  .registro-kpi-value {
+    color: #17212f;
+    font-size: 1.35rem;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+  .registro-kpi-sub {
+    color: #6c757d;
+    font-size: .62rem;
+  }
+  .registro-filter-card { height: 100%; }
+  .registro-filter-card .card-header {
+    padding: .45rem .9rem .1rem;
+    font-size: .95rem;
+    line-height: 1.1;
+  }
+  .registro-filter-card .card-body {
+    padding: .45rem .9rem .65rem;
+    display: flex;
+    align-items: center;
+  }
+  .registro-filter-card form { width: 100%; }
+  .registro-filter-actions {
+    flex: 0 0 auto;
+    width: max-content;
+  }
+  .registro-filter-card .btn-compact {
+    padding: .3rem .55rem !important;
+    font-size: .78rem;
+    white-space: nowrap;
+  }
+  .registro-filter-card .form-label {
+    font-size: .72rem;
+    margin-bottom: .2rem;
+  }
+  .registro-filter-card .form-control,
+  .registro-filter-card .form-select {
+    min-height: 34px;
+    padding: .3rem .55rem;
+    font-size: .82rem;
+  }
+  .registro-filter-card .btn {
+    min-height: 34px;
+    padding: .3rem .65rem;
+    font-size: .82rem;
+  }
+  @media (max-width: 1199.98px) {
+    .registro-overview-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .registro-filter-card {
+      grid-column: 1 / -1;
+    }
+  }
+  @media (max-width: 575.98px) {
+    .registro-overview-grid {
+      grid-template-columns: 1fr;
+    }
+    .registro-filter-card {
+      grid-column: auto;
+    }
+  }
+  .registro-title-gavel {
+    width: 1.18em;
+    min-width: 1.18em;
+    height: 1.18em;
+    margin-right: .5rem;
+    color: var(--orc-primary);
+    vertical-align: -.16em;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+  <div>
+    <h4 class="mb-0 fw-bold">
+      <span class="icon-auction-gavel registro-title-gavel" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false">
+          <path d="M1 21h12v-2H1v2Zm4.25-12.93 2.83-2.83 14.14 14.15-2.83 2.82L5.25 8.07Zm7.07-7.07 5.66 5.66-2.83 2.83L9.49 3.83 12.32 1ZM3.83 9.49l5.66 5.65-2.83 2.83L1 12.31l2.83-2.82Z"/>
+        </svg>
+      </span>Licitações
+    </h4>
+    <small class="text-muted">Itens homologados no IRP e licitações importadas do SIPAC.</small>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <form method="post" action="{% url 'registro_preco_sync_irp' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-success btn-sm">
+        <i class="bi bi-arrow-repeat me-1"></i>Sincronizar IRP
+      </button>
+    </form>
+    <a href="{% url 'registro_preco_importar' %}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-upload me-1"></i>Importar SIPAC
+    </a>
+    <a href="{% url 'registro_preco_template_xlsx' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-file-earmark-spreadsheet me-1"></i>Planilha Modelo
+    </a>
+    <button id="btn-excluir-sel" type="button" class="btn btn-danger btn-sm d-none" onclick="excluirRegistrosSel()">
+      <i class="bi bi-trash me-1"></i>Apagar Selecionadas
+    </button>
+  </div>
+</div>
+
+<form id="form-excluir-rp" method="post" action="{% url 'registro_preco_excluir_lote' %}" class="d-none">
+  {% csrf_token %}
+  <div id="pks-container-rp"></div>
+</form>
+
+<div class="registro-overview-grid">
+  <div class="card border-0 shadow-sm registro-kpi-card">
+    <div class="card-body">
+      <div class="registro-kpi-label">Pregões Vigentes</div>
+      <div class="registro-kpi-value">{{ stats.pregoes_vigentes }} / {{ stats.pregoes_total }}</div>
+      <div class="registro-kpi-sub">Pregões</div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm registro-kpi-card">
+    <div class="card-body">
+      <div class="registro-kpi-label">Itens Vigentes</div>
+      <div class="registro-kpi-value">{{ stats.vigentes }} / {{ stats.total }}</div>
+      <div class="registro-kpi-sub">Itens</div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm registro-filter-card">
+    <div class="card-header bg-white border-0 fw-semibold">
+      <i class="bi bi-funnel me-1 text-primary"></i>Filtros
+    </div>
+    <div class="card-body">
+      <form method="get" class="d-flex flex-wrap align-items-end gap-2 w-100">
+        <div style="flex:1 1 0;min-width:0">
+          <label class="form-label small fw-semibold">Busca</label>
+          <input type="text" name="q" class="form-control form-control-sm" value="{{ filtros.q }}" placeholder="Pregão, material licitado, item, material ou rubrica">
+        </div>
+        <div style="flex:1 1 0;min-width:0">
+          <label class="form-label small fw-semibold">Origem</label>
+          <select name="origem" class="form-select form-select-sm">
+            <option value="">Todas</option>
+            <option value="rp" {% if filtros.origem == 'rp' %}selected{% endif %}>Módulo IRP</option>
+            <option value="sipac" {% if filtros.origem == 'sipac' %}selected{% endif %}>SIPAC</option>
+          </select>
+        </div>
+        <div style="flex:1 1 0;min-width:0">
+          <label class="form-label small fw-semibold">Situação</label>
+          <select name="situacao" class="form-select form-select-sm">
+            <option value="">Todas</option>
+            <option value="vigente" {% if filtros.situacao == 'vigente' %}selected{% endif %}>Vigente</option>
+            <option value="a_vencer" {% if filtros.situacao == 'a_vencer' %}selected{% endif %}>A vencer</option>
+            <option value="vencido" {% if filtros.situacao == 'vencido' %}selected{% endif %}>Vencido</option>
+            <option value="sem_validade" {% if filtros.situacao == 'sem_validade' %}selected{% endif %}>Sem validade</option>
+          </select>
+        </div>
+        <div class="d-flex flex-column gap-1 registro-filter-actions">
+          <button type="submit" class="btn btn-primary btn-sm btn-compact"><i class="bi bi-search me-1"></i>Filtrar</button>
+          <a href="{% url 'registro_preco_list' %}" class="btn btn-light btn-sm btn-compact"><i class="bi bi-x-circle me-1"></i>Limpar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 tabela-registros-preco" id="tabela-registros-preco">
+      <thead class="table-light">
+        <tr>
+          <th class="text-center" style="width:36px">
+            <input type="checkbox" id="chk-all-rp" class="form-check-input" title="Selecionar todos">
+          </th>
+          <th class="sortable text-center" data-col="1" data-type="text" style="width:115px">Pregão <span class="sort-icon"></span></th>
+          <th class="sortable text-start" data-col="2" data-type="text">Material Licitado <span class="sort-icon"></span></th>
+          <th class="sortable text-center" data-col="3" data-type="text" style="width:58px">Item <span class="sort-icon"></span></th>
+          <th class="sortable text-start" data-col="4" data-type="text">Material <span class="sort-icon"></span></th>
+          <th class="sortable text-start" data-col="5" data-type="text" style="width:120px">Rubrica <span class="sort-icon"></span></th>
+          <th class="sortable text-center" data-col="6" data-type="text" style="width:95px">Unidade <span class="sort-icon"></span></th>
+          <th class="text-center sortable" data-col="7" data-type="number" style="width:105px">Valor <span class="sort-icon"></span></th>
+          <th class="sortable text-center" data-col="8" data-type="number" style="width:115px">Saldo Unidade <span class="sort-icon"></span></th>
+          <th class="sortable text-center" data-col="9" data-type="date" style="width:118px">Validade <span class="sort-icon"></span></th>
+        </tr>
+      </thead>
+      <tbody id="tbody-registros-preco">
+        {% for item in itens %}
+        <tr class="registro-row">
+          <td class="text-center">
+            <input type="checkbox" class="form-check-input chk-row-rp" value="{{ item.pk }}">
+          </td>
+          <td class="text-center" data-sort="{{ item.registro.numero_pregao }} {{ item.registro.get_origem_display }}">
+            <div class="col-pregao">{{ item.registro.numero_pregao }}</div>
+            <span class="badge-origem {% if item.registro.origem == 'rp' %}badge-origem-irp{% else %}badge-origem-sipac{% endif %}">
+              {{ item.registro.get_origem_display }}
+            </span>
+          </td>
+          <td class="text-start col-material" data-sort="{{ item.material_licitado }}">
+            {% if item.material_licitado %}
+            <span class="material-clamp material-tooltip-trigger"
+                  data-bs-toggle="tooltip"
+                  data-bs-placement="top"
+                  data-bs-custom-class="material-full-tooltip"
+                  data-bs-title="{{ item.material_licitado }}">
+              {{ item.material_licitado }}
+            </span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-center col-numero fw-semibold text-muted" data-sort="{{ item.numero_item }}">{{ item.numero_item }}</td>
+          <td class="text-start col-material" data-sort="{{ item.material }}">
+            <span class="material-clamp material-tooltip-trigger"
+                  data-bs-toggle="tooltip"
+                  data-bs-placement="top"
+                  data-bs-custom-class="material-full-tooltip"
+                  data-bs-title="{{ item.material }}">
+              {{ item.material }}
+            </span>
+          </td>
+          <td class="text-start col-numero" data-sort="{{ item.rubrica|default:'' }}">{{ item.rubrica|default:"—" }}</td>
+          <td class="text-center col-numero" data-sort="{{ item.unidade|default:'' }}">{{ item.unidade|default:"—" }}</td>
+          <td class="text-center text-nowrap col-money" data-sort="{{ item.valor|default_if_none:'' }}">{% if item.valor %}R$ {{ item.valor|floatformat:2 }}{% else %}—{% endif %}</td>
+          <td class="text-center col-numero" data-sort="{{ item.saldo_unidade|default:'' }}">{{ item.saldo_unidade|default:"—" }}</td>
+          <td class="text-center" data-sort="{{ item.validade_efetiva|date:'Y-m-d' }}">
+            <div class="col-numero">{{ item.validade_efetiva|date:"d/m/Y"|default:"—" }}</div>
+            {% if item.situacao_vigencia == 'vigente' %}
+            <span class="badge-situacao badge-vigente mt-1">Vigente</span>
+            {% elif item.situacao_vigencia == 'a_vencer' %}
+            <span class="badge-situacao badge-a-vencer mt-1">A vencer</span>
+            {% elif item.situacao_vigencia == 'vencido' %}
+            <span class="badge-situacao badge-vencido mt-1">Vencido</span>
+            {% else %}
+            <span class="badge-situacao badge-sem-validade mt-1">Sem validade</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="10" class="text-center text-muted py-5" style="font-family:'Open Sans',sans-serif">
+            <i class="bi bi-inbox fs-3 d-block mb-2 opacity-25"></i>
+            Nenhuma licitação encontrada.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer bg-white border-top py-2 registro-muted">
+    Total: <strong>{{ stats.total }}</strong> item(ns)
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+  const table = document.getElementById('tabela-registros-preco');
+  const tbody = document.getElementById('tbody-registros-preco');
+  if (!table || !tbody) return;
+
+  let sortCol = -1;
+  let sortAsc = true;
+
+  function normalizeNumber(raw) {
+    const text = String(raw || '').replace(/[^\d,.-]/g, '').trim();
+    if (!text) return Number.NEGATIVE_INFINITY;
+    if (text.includes(',')) {
+      return parseFloat(text.replace(/\./g, '').replace(',', '.')) || 0;
+    }
+    return parseFloat(text) || 0;
+  }
+
+  function cellValue(row, col, type) {
+    const cell = row.children[col];
+    const raw = cell ? (cell.dataset.sort || cell.textContent || '').trim() : '';
+    if (type === 'number') return normalizeNumber(raw);
+    if (type === 'date') return raw ? Date.parse(raw) || 0 : Number.NEGATIVE_INFINITY;
+    return raw.toLocaleLowerCase('pt-BR');
+  }
+
+  table.querySelectorAll('th.sortable').forEach(function(th) {
+    th.addEventListener('click', function() {
+      const col = Number(this.dataset.col);
+      const type = this.dataset.type || 'text';
+      sortAsc = sortCol === col ? !sortAsc : true;
+      sortCol = col;
+
+      table.querySelectorAll('th.sortable').forEach(function(header) {
+        header.classList.remove('asc', 'desc');
+      });
+      this.classList.add(sortAsc ? 'asc' : 'desc');
+
+      Array.from(tbody.querySelectorAll('tr'))
+        .filter(function(row) { return row.children.length > col; })
+        .sort(function(a, b) {
+          const va = cellValue(a, col, type);
+          const vb = cellValue(b, col, type);
+          const cmp = type === 'text'
+            ? va.localeCompare(vb, 'pt-BR', {numeric: true, sensitivity: 'base'})
+            : va - vb;
+          return sortAsc ? cmp : -cmp;
+        })
+        .forEach(function(row) { tbody.appendChild(row); });
+    });
+  });
+
+  // ── Checkboxes / excluir em lote ─────────────────────────────────────────
+  const chkAll = document.getElementById('chk-all-rp');
+  const btnExcl = document.getElementById('btn-excluir-sel');
+  function atualizarBtnExcl() {
+    const marcados = document.querySelectorAll('.chk-row-rp:checked').length;
+    btnExcl.classList.toggle('d-none', marcados === 0);
+    btnExcl.innerHTML = '<i class="bi bi-trash me-1"></i>Apagar' + (marcados > 0 ? ' (' + marcados + ')' : ' Selecionadas');
+    const all = document.querySelectorAll('.chk-row-rp');
+    chkAll.indeterminate = marcados > 0 && marcados < all.length;
+    chkAll.checked = marcados > 0 && marcados === all.length;
+  }
+  chkAll.addEventListener('change', function() {
+    document.querySelectorAll('.chk-row-rp').forEach(c => c.checked = chkAll.checked);
+    atualizarBtnExcl();
+  });
+  document.querySelectorAll('.chk-row-rp').forEach(c => c.addEventListener('change', atualizarBtnExcl));
+
+  window.excluirRegistrosSel = function() {
+    const pks = [...document.querySelectorAll('.chk-row-rp:checked')].map(c => c.value);
+    if (!pks.length) return;
+    if (!confirm(`Excluir ${pks.length} registro(s) de preço selecionado(s)? Esta ação não pode ser desfeita.`)) return;
+    const container = document.getElementById('pks-container-rp');
+    container.innerHTML = pks.map(pk => `<input type="hidden" name="pks" value="${pk}">`).join('');
+    document.getElementById('form-excluir-rp').submit();
+  };
+
+  document.querySelectorAll('.material-tooltip-trigger').forEach(function(el) {
+    new bootstrap.Tooltip(el, {
+      container: 'body',
+      boundary: 'window',
+      trigger: 'hover focus'
+    });
+  });
+})();
+</script>
+{% endblock %}

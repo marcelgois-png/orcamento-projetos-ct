@@ -1,0 +1,263 @@
+{% extends 'base.html' %}
+{% block title %}Homologações – IRP CT/UFPB{% endblock %}
+
+{% block extra_head %}
+<style>
+  .prazo-linha { font-size: .78rem; color: #6c757d; white-space: nowrap; }
+  .prazo-ativo { color: #0a3622; font-weight: 600; }
+
+  .irp-acao {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 7px; border: 1px solid transparent;
+    font-size: .95rem; text-decoration: none; background: none;
+    cursor: pointer; padding: 0; transition: background .15s, border-color .15s, color .15s;
+    flex-shrink: 0;
+  }
+  .irp-acao-disabled  { color: #adb5bd; border-color: #dee2e6; background: #f8f9fa; cursor: not-allowed; opacity: .55; }
+  .irp-acao-hom       { color: #198754; border-color: #b6dcc8; background: #e8f5ee; }
+  .irp-acao-hom:hover { background: #d1ece0; border-color: #86c5a5; color: #135f3c; }
+  .irp-acao-hom-done  { color: #0a3622; border-color: #a3cfbb; background: #d1e7dd; }
+  .irp-acao-ver       { color: #0d6efd; border-color: #c7d8fc; background: #eef3ff; }
+  .irp-acao-ver:hover { background: #dce8ff; border-color: #9bbcfb; color: #0a58ca; }
+  .irp-acao-reabrir       { color: #6c757d; border-color: #ced4da; background: #f8f9fa; }
+  .irp-acao-reabrir:hover { background: #e9ecef; border-color: #adb5bd; color: #495057; }
+  .irp-acao-enc       { color: #6f42c1; border-color: #d8c6f5; background: #f3eeff; }
+  .irp-acao-enc:hover { background: #e9dffd; border-color: #b39ae8; color: #5a32a3; }
+  .irp-acao-enc-done  { color: #5a32a3; border-color: #c4aef0; background: #ede5fd; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h4 class="fw-bold mb-0" style="font-family:'Open Sans',sans-serif">
+    <i class="bi bi-check2-circle me-2 text-primary"></i>Homologações
+    {% if is_admin_view %}
+    <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-medium fs-6 ms-2" style="font-size: .65rem !important; vertical-align: middle;">ADMIN</span>
+    {% elif setor_raiz %}
+    <span class="fw-normal text-muted fs-6 ms-1">— {{ setor_raiz.nome }}</span>
+    {% endif %}
+  </h4>
+</div>
+
+{% if not setor_raiz and not is_admin_view %}
+<div class="alert alert-warning border-0 py-2 small">
+  <i class="bi bi-exclamation-triangle me-1"></i>
+  Você não possui setor de lotação definido. Solicite ao administrador que configure seu perfil.
+</div>
+{% else %}
+
+<!-- Filtros -->
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+  <div class="input-group input-group-sm" style="max-width:320px">
+    <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+    <input type="text" id="busca-hom" class="form-control border-start-0 ps-0"
+           placeholder="Filtrar por título..." style="font-family:'Open Sans',sans-serif">
+  </div>
+  <select id="filtro-status" class="ts-filtro" multiple placeholder="Todas as fases">
+    <option value="em_cadastro">Em cadastro</option>
+    <option value="respostas">Coletando respostas</option>
+    <option value="homologacao">Em homologação</option>
+    <option value="encerrada">Encerrada</option>
+  </select>
+  <button type="button" id="btn-limpar" class="btn btn-sm btn-outline-secondary d-none"
+          style="font-family:'Open Sans',sans-serif" onclick="limpar()">
+    <i class="bi bi-x-lg me-1"></i>Limpar
+  </button>
+</div>
+
+<!-- Tabela -->
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 w-100" id="tabela-hom" style="table-layout: fixed;">
+      <thead class="table-light">
+        <tr>
+          <th class="sortable" data-col="0" style="width:20%">Título <span class="sort-icon"></span></th>
+          <th style="width:20%">Prazos</th>
+          <th class="text-center sortable" data-col="2" style="width:15%">Fase Atual <span class="sort-icon"></span></th>
+          <th class="text-center sortable" data-col="3" style="width:10%">Itens <span class="sort-icon"></span></th>
+          <th class="text-center sortable" data-col="4" style="width:10%">Respostas <span class="sort-icon"></span></th>
+          <th class="text-center" style="width:25%">Ações</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-hom">
+        {% for item in irps_com_status %}
+        {% with hstatus=item.homologacao.status|default:"pendente" %}
+        <tr class="hom-row"
+            data-busca="{{ item.irp.titulo|lower }}"
+            data-status="{{ item.irp.fase_atual }}">
+          <td data-sort="{{ item.irp.titulo|lower }}">
+            <span class="fw-semibold">{{ item.irp.titulo }}</span>
+            {% if item.irp.descricao %}
+            <br><span class="text-muted" style="font-size:.8rem">{{ item.irp.descricao|truncatechars:70 }}</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="prazo-linha {% if item.irp.fase_atual == 'respostas' %}prazo-ativo{% endif %}">
+              <i class="bi bi-1-circle me-1"></i>Respostas: {{ item.irp.prazo|date:"d/m/Y" }}
+            </div>
+            <div class="prazo-linha {% if item.irp.fase_atual == 'homologacao' %}prazo-ativo{% endif %}">
+              <i class="bi bi-2-circle me-1"></i>Homologação:
+              {% if item.irp.prazo_homologacao %}{{ item.irp.prazo_homologacao|date:"d/m/Y" }}
+              {% else %}<em class="opacity-50">não definido</em>{% endif %}
+            </div>
+          </td>
+          <td class="text-center" data-sort="{{ item.irp.fase_atual }}">
+            {% if item.irp.fase_atual == 'em_cadastro' %}
+              <span class="fase-badge fase-cadastro"><i class="bi bi-pencil"></i>Em cadastro</span>
+            {% elif item.irp.fase_atual == 'respostas' %}
+              <span class="fase-badge fase-respostas"><i class="bi bi-people"></i>Coletando respostas</span>
+            {% elif item.irp.fase_atual == 'homologacao' %}
+              <span class="fase-badge fase-homologacao"><i class="bi bi-hourglass-split"></i>Em homologação</span>
+            {% elif item.irp.fase_atual == 'encerrada' %}
+              <span class="fase-badge fase-encerrada"><i class="bi bi-lock"></i>Encerrada</span>
+            {% endif %}
+          </td>
+          <td class="text-center" data-sort="{{ item.irp.itens_ativos|stringformat:'06d' }}">{{ item.irp.itens_ativos }}</td>
+          <td class="text-center" data-sort="{{ item.irp.total_respostas|stringformat:'06d' }}">{{ item.irp.total_respostas }}</td>
+          <td class="text-center">
+            <div class="d-flex gap-1 justify-content-center">
+
+              <!-- [1] Ver — sempre visível, somente leitura -->
+              <a href="{% url 'homologar_setor' item.irp.pk %}?readonly=1"
+                 class="irp-acao irp-acao-ver"
+                 title="Visualizar respostas (somente leitura)">
+                <i class="bi bi-eye"></i>
+              </a>
+
+              <!-- [2] Homologar ↔ Reabrir (mesmo slot, alterna conforme status) -->
+              {% if hstatus == 'pendente' %}
+                <a href="{% url 'homologar_setor' item.irp.pk %}"
+                   class="irp-acao irp-acao-hom hom-acao-btn"
+                   data-prazo-resp="{{ item.irp.prazo|date:'c' }}"
+                   title="Registrar decisão de homologação">
+                  <i class="bi bi-check2-circle"></i>
+                </a>
+              {% elif item.em_licitacao %}
+                <span class="irp-acao irp-acao-disabled" title="Não é possível reabrir: IRP já encaminhada para licitação">
+                  <i class="bi bi-arrow-counterclockwise"></i>
+                </span>
+              {% elif hstatus == 'homologada' or hstatus == 'rejeitada' %}
+                <form id="form-reabrir-hom-{{ item.irp.pk }}" method="post"
+                      action="{% url 'reabrir_homologacao' item.irp.pk %}">{% csrf_token %}</form>
+                <button type="submit" form="form-reabrir-hom-{{ item.irp.pk }}"
+                        class="irp-acao irp-acao-reabrir"
+                        title="Reabrir homologação para edição"
+                        onclick="return confirm('Reabrir a homologação da IRP &quot;{{ item.irp.titulo|escapejs }}&quot;?')">
+                  <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+              {% else %}
+                <span class="irp-acao irp-acao-disabled" title="Homologação não disponível nesta fase">
+                  <i class="bi bi-check2-circle"></i>
+                </span>
+              {% endif %}
+
+              <!-- [3] Encaminhar para licitação -->
+              {% if item.has_pregao %}
+                <span class="irp-acao irp-acao-disabled" title="Já encaminhada para licitação">
+                  <i class="bi bi-send-check-fill"></i>
+                </span>
+              {% elif item.irp.fase_atual == 'encerrada' %}
+                <form id="form-enc-{{ item.irp.pk }}" method="post"
+                      action="{% url 'encaminhar_licitacao' item.irp.pk %}">{% csrf_token %}</form>
+                <button type="submit" form="form-enc-{{ item.irp.pk }}"
+                        class="irp-acao irp-acao-enc"
+                        title="Encaminhar para licitação"
+                        onclick="return confirm('Encaminhar a IRP &quot;{{ item.irp.titulo|escapejs }}&quot; para licitação? Após encaminhar, não será possível reabrir a homologação.')">
+                  <i class="bi bi-send"></i>
+                </button>
+              {% else %}
+                <span class="irp-acao irp-acao-disabled" title="Disponível somente quando todas as homologações do grupo estiverem concluídas">
+                  <i class="bi bi-send"></i>
+                </span>
+              {% endif %}
+
+            </div>
+          </td>
+        </tr>
+        {% endwith %}
+        {% empty %}
+        <tr>
+          <td colspan="6" class="text-center text-muted py-5" style="font-family:'Open Sans',sans-serif">
+            <i class="bi bi-inbox fs-2 d-block mb-2 opacity-25"></i>
+            Nenhuma IRP disponível para homologação.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer bg-white border-top d-flex justify-content-between align-items-center py-2 rodape-tabela">
+    <span id="rodape">Total: <strong>{{ irps_com_status|length }}</strong> IRP(s)</span>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const TOTAL = {{ irps_com_status|length }};
+const iBusca = document.getElementById('busca-hom');
+const btn    = document.getElementById('btn-limpar');
+const rodape = document.getElementById('rodape');
+
+const tsFase = new TomSelect('#filtro-status', {
+  plugins: ['remove_button'],
+  placeholder: 'Todas as fases',
+  onInitialize() { this.wrapper.style.minWidth = '200px'; },
+  onChange: filtrar,
+});
+
+function filtrar() {
+  const t = iBusca?.value.toLowerCase().trim() || '';
+  const fases = tsFase.getValue();
+  let vis = 0;
+  document.querySelectorAll('.hom-row').forEach(tr => {
+    const ok = (!t || tr.dataset.busca.includes(t)) && (!fases.length || fases.includes(tr.dataset.status));
+    tr.style.display = ok ? '' : 'none';
+    if (ok) vis++;
+  });
+  if (rodape) rodape.innerHTML = (t || fases.length)
+    ? `Exibindo <strong>${vis}</strong> de <strong>${TOTAL}</strong> IRP(s)`
+    : `Total: <strong>${TOTAL}</strong> IRP(s)`;
+  btn?.classList.toggle('d-none', !(t || fases.length));
+}
+function limpar() { if(iBusca) iBusca.value=''; tsFase.clear(); filtrar(); }
+iBusca?.addEventListener('input', filtrar);
+
+/* Ordenação */
+(function() {
+  let sortCol = -1, sortAsc = true;
+  document.querySelectorAll('#tabela-hom th.sortable').forEach(function(th) {
+    th.addEventListener('click', function() {
+      const col = parseInt(this.dataset.col);
+      sortAsc = sortCol === col ? !sortAsc : true;
+      sortCol = col;
+      document.querySelectorAll('#tabela-hom th.sortable').forEach(function(h) { h.classList.remove('asc', 'desc'); });
+      this.classList.add(sortAsc ? 'asc' : 'desc');
+      const tbody = document.getElementById('tbody-hom');
+      Array.from(tbody.querySelectorAll('tr.hom-row'))
+        .sort(function(a, b) {
+          const va = (a.querySelectorAll('td')[col]?.dataset.sort ?? '').toLowerCase();
+          const vb = (b.querySelectorAll('td')[col]?.dataset.sort ?? '').toLowerCase();
+          return sortAsc ? va.localeCompare(vb, 'pt-BR') : vb.localeCompare(va, 'pt-BR');
+        })
+        .forEach(function(tr) { tbody.appendChild(tr); });
+    });
+  });
+})();
+
+/* Desabilitar botão enquanto prazo de respostas não passou */
+document.querySelectorAll('.irp-acao-hom, .irp-acao-hom-done, .hom-acao-btn').forEach(function(btn) {
+  const prazoResp = btn.dataset.prazoResp;
+  if (prazoResp && new Date() < new Date(prazoResp)) {
+    // Removemos pointerEvents = 'none' para que o tooltip (title) funcione
+    btn.style.opacity = '0.3';
+    btn.style.cursor = 'not-allowed';
+    btn.title = 'A homologação estará disponível após o encerramento do prazo de respostas';
+    btn.removeAttribute('href');
+    btn.addEventListener('click', function(e) { e.preventDefault(); });
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,430 @@
+{% extends 'base.html' %}
+{% load core_tags %}
+
+{% block title %}{{ irp.titulo }} – IRP CT/UFPB{% endblock %}
+
+{% block extra_head %}
+<style>
+  .tabela-irp { font-family: 'Open Sans', sans-serif; table-layout: fixed; width: 100%; border-collapse: separate; border-spacing: 0; }
+  .tabela-irp thead th {
+    background-color: #f8f9fa !important;
+    border-bottom: 2px solid #dee2e6 !important;
+    font-size: 0.6rem !important;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    color: #495057;
+    padding: .75rem .4rem;
+    vertical-align: middle !important;
+    text-align: center;
+  }
+  .tabela-irp tbody td {
+    padding: .45rem .4rem;
+    vertical-align: middle;
+    font-size: 0.675rem !important;
+    line-height: 1.2;
+    border-bottom: 1px solid #eee;
+  }
+  .tabela-irp tbody tr:hover { background-color: #fcfdfe; }
+
+  .input-qtd  { width: 72px; text-align: center; font-size: 0.75rem !important; }
+  .input-just { min-width: 140px; font-size: 0.75rem !important; }
+
+  .setor-info-card { background: #f8f9fa; border-radius: 8px; padding: .75rem 1rem; border: 1px solid #eee; }
+  .setor-label { font-size: .65rem; font-weight: 700; text-transform: uppercase;
+                 letter-spacing: .05em; color: #6c757d; margin-bottom: 2px; }
+  .setor-valor { font-size: .85rem; font-weight: 600; color: #212529; }
+  .setor-sub   { font-size: .75rem; color: #6c757d; }
+
+  #totais-bar { position: sticky; bottom: 0; z-index: 20;
+                font-family: 'Open Sans', sans-serif; }
+
+  .just-obrig { border-color: #dc3545 !important; }
+  .just-aviso { font-size: .72rem; color: #dc3545; display: none; margin-top: 2px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Breadcrumb + cabeçalho -->
+<nav aria-label="breadcrumb" class="mb-2">
+  <ol class="breadcrumb small">
+    <li class="breadcrumb-item"><a href="{% url 'irp_list' %}">Minhas IRPs</a></li>
+    <li class="breadcrumb-item active">{{ irp.titulo }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3">
+  <div>
+    <h4 class="fw-bold mb-0">{{ irp.titulo }}</h4>
+    {% if irp.descricao %}
+    <p class="text-muted small mt-1 mb-0">{{ irp.descricao }}</p>
+    {% endif %}
+  </div>
+  <div class="text-end">
+    {% if pode_editar %}
+      <span class="badge bg-success fs-6 mb-1"><i class="bi bi-unlock-fill me-1"></i>Aberta</span>
+      <div class="text-danger small fw-semibold">
+        <i class="bi bi-clock me-1"></i>Prazo: {{ irp.prazo|date:"d/m/Y" }}
+      </div>
+    {% else %}
+      <span class="badge bg-secondary fs-6"><i class="bi bi-lock-fill me-1"></i>Encerrada</span>
+      <div class="text-muted small">{{ irp.prazo|date:"d/m/Y" }}</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if not pode_editar %}
+<div class="alert alert-secondary border-0 py-2 mb-3">
+  <i class="bi bi-lock-fill me-1"></i>
+  Esta IRP está encerrada. Os dados abaixo são somente leitura.
+</div>
+{% endif %}
+
+<form method="post" id="form-irp" novalidate>
+{% csrf_token %}
+
+<!-- Card do respondente (read-only) -->
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <span class="fw-semibold d-flex align-items-center gap-2" style="font-family:'Open Sans',sans-serif">
+        {% if resposta.usuario.perfil.foto %}
+          <img src="{{ resposta.usuario.perfil.foto.url }}" alt=""
+               style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+        {% else %}
+          <i class="bi bi-person-circle fs-5 text-primary"></i>
+        {% endif %}
+        {% if resposta.usuario.perfil.nome_completo %}{{ resposta.usuario.perfil.nome_completo }}
+        {% else %}{{ resposta.usuario.username }}{% endif %}
+      </span>
+      <div class="text-end">
+        {% if resposta.respondida_em %}
+          <div class="text-muted small"><i class="bi bi-send-check me-1"></i>Respondida em {{ resposta.respondida_em|date:"d/m/Y H:i" }}</div>
+          {% if resposta.atualizada_em|date:"YmdHi" != resposta.respondida_em|date:"YmdHi" %}
+          <div class="text-muted small"><i class="bi bi-pencil me-1"></i>Última edição {{ resposta.atualizada_em|date:"d/m/Y H:i" }}</div>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="setor-info-card" style="max-width:480px">
+      <div class="setor-label"><i class="bi bi-building me-1"></i>Setor</div>
+      {% if lot_pai %}
+        <div class="setor-valor">{{ lot_pai.nome }}</div>
+        {% if lot_sub %}
+        <div class="setor-sub"><i class="bi bi-arrow-return-right me-1 opacity-50" style="font-size:.72rem"></i>{{ lot_sub.nome }}</div>
+        {% endif %}
+      {% else %}
+        <div class="setor-valor text-muted fst-italic">Não definido</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Filtro de itens -->
+{% if pode_editar %}
+<div class="mb-2 d-flex gap-2 align-items-center">
+  <div class="input-group input-group-sm" style="max-width:320px">
+    <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+    <input type="text" id="busca-item" class="form-control border-start-0 ps-0"
+           placeholder="Filtrar itens por descrição...">
+  </div>
+  <span class="text-muted small" id="contador-filtro"></span>
+</div>
+{% endif %}
+
+<!-- Tabela de itens -->
+<div class="card border-0 shadow-sm mb-3">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 tabela-irp">
+      <thead class="table-light">
+        <tr>
+          <th style="width:44px">Nº</th>
+          <th class="text-start">Descrição</th>
+          <th style="width:70px" class="text-center">Unid.</th>
+          <th style="width:110px" class="text-end">Preço Ref.</th>
+          <th style="width:100px" class="text-center">Quantidade</th>
+          <th style="width:120px" class="text-end">Valor Total</th>
+          <th class="text-start">Justificativa</th>
+          <th style="width:30px"></th>
+        </tr>
+      </thead>
+      <tbody id="tabela-body">
+        {% for entry in itens_dados %}
+        <tr class="item-row" data-descricao="{{ entry.item.descricao|lower }}">
+          <td class="text-center fw-semibold text-muted">{{ entry.item.numero }}</td>
+          <td>
+            <span class="small">{{ entry.item.descricao }}</span>
+          </td>
+          <td class="text-center small">{{ entry.item.unidade }}</td>
+          <td class="text-end small">{{ entry.item.preco_estimado|brl }}</td>
+          <td class="text-center">
+            <input type="number"
+                   name="qtd_{{ entry.item.pk }}"
+                   id="qtd-{{ entry.item.pk }}"
+                   class="form-control form-control-sm input-qtd qtd-input"
+                   value="{% if entry.quantidade %}{{ entry.quantidade|floatformat:"0" }}{% endif %}"
+                   min="0" step="1"
+                   data-price="{{ entry.item.preco_estimado }}"
+                   data-item="{{ entry.item.pk }}"
+                   {% if not pode_editar %}disabled{% endif %}
+                   placeholder="0">
+          </td>
+          <td class="text-end small" id="valor-local-{{ entry.item.pk }}">
+            {# valor calculado pelo JS atualizarTotais() no DOMContentLoaded #}
+            {% if entry.quantidade %}—{% else %}—{% endif %}
+          </td>
+          <td>
+            <input type="text"
+                   name="obs_{{ entry.item.pk }}"
+                   id="obs-{{ entry.item.pk }}"
+                   class="form-control form-control-sm input-just"
+                   value="{{ entry.observacao }}"
+                   {% if not pode_editar %}disabled{% endif %}
+                   placeholder="Justificar caso intencione esse item">
+            <div class="just-aviso" id="aviso-{{ entry.item.pk }}">
+              Justificativa é obrigatória quando há quantidade informada.
+            </div>
+          </td>
+          <td class="text-center" id="status-{{ entry.item.pk }}">
+            {% if entry.quantidade %}
+              <span class="text-success"><i class="bi bi-check-circle-fill"></i></span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="8" class="text-center text-muted py-5">
+            <i class="bi bi-inbox fs-2 d-block mb-2 opacity-25"></i>
+            Esta IRP ainda não possui itens cadastrados.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Observações adicionais -->
+{% if pode_editar or resposta.observacao_geral %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-white fw-semibold" style="font-family:'Open Sans',sans-serif;font-size:.875rem">
+    <i class="bi bi-chat-left-text me-1 text-muted"></i>Observações Adicionais
+    <span class="text-muted fw-normal">(opcional)</span>
+  </div>
+  <div class="card-body py-3">
+    <textarea name="observacao_geral" rows="3" class="form-control"
+              style="font-family:'Open Sans',sans-serif;font-size:.875rem"
+              {% if not pode_editar %}disabled{% endif %}
+              placeholder="Informe aqui observações gerais sobre sua resposta, restrições de fornecimento, pedidos especiais etc.">{{ resposta.observacao_geral }}</textarea>
+  </div>
+</div>
+{% endif %}
+
+<!-- Barra de totais e ações -->
+<div id="totais-bar" class="bg-white border-top shadow px-3 py-2 mt-0">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <div class="d-flex gap-4">
+      <div>
+        <span class="text-muted small">Itens com intenção:</span>
+        <strong id="total-itens" class="ms-1">0</strong>
+      </div>
+      <div>
+        <span class="text-muted small">Valor total:</span>
+        <strong id="total-valor" class="ms-1 text-primary">R$ 0,00</strong>
+      </div>
+    </div>
+    {% if pode_editar %}
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-primary btn-sm fw-semibold px-4" id="btn-salvar">
+        {% if ja_respondeu %}
+          <i class="bi bi-pencil-square me-1"></i>Enviar Alteração
+        {% else %}
+          <i class="bi bi-send me-1"></i>Enviar Resposta
+        {% endif %}
+      </button>
+      <a href="{% url 'irp_list' %}" class="btn btn-outline-secondary btn-sm">Voltar</a>
+    </div>
+    {% else %}
+    <a href="{% url 'irp_list' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>Voltar
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Modal de confirmação -->
+<div class="modal fade" id="modalConfirmar" tabindex="-1" aria-labelledby="modalConfirmarLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="font-family:'Open Sans',sans-serif">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold" id="modalConfirmarLabel">
+          <i class="bi bi-send-check me-2 text-primary"></i>Confirmar envio
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <p class="text-muted small mb-3">Revise o resumo antes de confirmar:</p>
+        <div class="d-flex gap-3 mb-3">
+          <div class="flex-fill text-center p-3 rounded" style="background:#e8f4fd">
+            <div class="fs-3 fw-bold text-primary" id="modal-total-itens">0</div>
+            <div class="text-muted small mt-1">Itens solicitados</div>
+          </div>
+          <div class="flex-fill text-center p-3 rounded" style="background:#e8f4fd">
+            <div class="fs-3 fw-bold text-primary" id="modal-total-valor">R$ 0,00</div>
+            <div class="text-muted small mt-1">Valor Intencionado</div>
+          </div>
+        </div>
+        <p class="small text-muted mb-0">
+          <i class="bi bi-info-circle me-1"></i>
+          Ao confirmar, sua resposta será registrada e você retornará à lista de IRPs.
+        </p>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
+          <i class="bi bi-x me-1"></i>Cancelar
+        </button>
+        <button type="button" class="btn btn-primary btn-sm fw-semibold px-4" id="btn-confirmar-envio">
+          <i class="bi bi-send me-1"></i>Confirmar envio
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const precos = {};
+{% load l10n %}
+{% for entry in itens_dados %}
+precos[{{ entry.item.pk }}] = {{ entry.item.preco_estimado|unlocalize }};
+{% endfor %}
+
+function formatBRL(valor) {
+  return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function calcularTotais() {
+  let totalItens = 0, totalCentavos = 0;
+  document.querySelectorAll('.qtd-input').forEach(input => {
+    const qtd = parseFloat(input.value) || 0;
+    if (qtd > 0) {
+      totalItens++;
+      // Acumula em centavos para evitar erros de ponto flutuante
+      totalCentavos += Math.round(qtd * (precos[input.dataset.item] || 0) * 100);
+    }
+  });
+  return { totalItens, totalValor: totalCentavos / 100 };
+}
+
+function atualizarTotais() {
+  document.querySelectorAll('.qtd-input').forEach(input => {
+    const qtd   = parseFloat(input.value) || 0;
+    const id    = input.dataset.item;
+    const preco = precos[id] || 0;
+    const valorEl = document.getElementById('valor-local-' + id);
+    const obsEl   = document.getElementById('obs-' + id);
+    const aviso   = document.getElementById('aviso-' + id);
+
+    const statusEl = document.getElementById('status-' + id);
+    if (qtd > 0) {
+      const val = Math.round(qtd * preco * 100) / 100;
+      if (valorEl) valorEl.innerHTML = `<strong>${formatBRL(val)}</strong>`;
+      if (obsEl) obsEl.setAttribute('placeholder', 'Justificar caso intencione esse item');
+      if (statusEl) statusEl.innerHTML = '<span class="text-success"><i class="bi bi-check-circle-fill"></i></span>';
+    } else {
+      if (valorEl) valorEl.innerHTML = '—';
+      if (statusEl) statusEl.innerHTML = '';
+      if (obsEl) {
+        obsEl.setAttribute('placeholder', 'Justificar caso intencione esse item');
+        obsEl.classList.remove('just-obrig');
+        if (aviso) aviso.style.display = 'none';
+      }
+    }
+  });
+  const { totalItens, totalValor } = calcularTotais();
+  document.getElementById('total-itens').textContent = totalItens;
+  document.getElementById('total-valor').textContent = formatBRL(totalValor);
+}
+
+function validarFormulario() {
+  let erros = 0;
+  document.querySelectorAll('.qtd-input').forEach(input => {
+    const qtd   = parseFloat(input.value) || 0;
+    const id    = input.dataset.item;
+    const obsEl = document.getElementById('obs-' + id);
+    const aviso = document.getElementById('aviso-' + id);
+    if (qtd > 0 && obsEl && !obsEl.value.trim()) {
+      obsEl.classList.add('just-obrig');
+      if (aviso) aviso.style.display = 'block';
+      erros++;
+    } else if (obsEl) {
+      obsEl.classList.remove('just-obrig');
+      if (aviso) aviso.style.display = 'none';
+    }
+  });
+  if (erros > 0) {
+    const primeiroErro = document.querySelector('.just-obrig');
+    if (primeiroErro) primeiroErro.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return false;
+  }
+  return true;
+}
+
+// Intercepta submit: valida → abre modal
+document.getElementById('btn-salvar')?.addEventListener('click', function (e) {
+  e.preventDefault();
+  if (!validarFormulario()) return;
+  const { totalItens, totalValor } = calcularTotais();
+  document.getElementById('modal-total-itens').textContent = totalItens;
+  document.getElementById('modal-total-valor').textContent = formatBRL(totalValor);
+  new bootstrap.Modal(document.getElementById('modalConfirmar')).show();
+});
+
+// Confirmar no modal → submete o form
+document.getElementById('btn-confirmar-envio')?.addEventListener('click', function () {
+  const form = document.getElementById('form-irp');
+  const data = new FormData(form);
+  const qtds = [];
+  for (const [k, v] of data.entries()) {
+    if (k.startsWith('qtd_')) qtds.push(`${k}=${v || '(vazio)'}`);
+  }
+  console.log('[IRP] Quantidades a enviar:', qtds.join(' | '));
+  form.submit();
+});
+
+// Remove marcação de erro ao digitar na justificativa
+document.querySelectorAll('.input-just').forEach(obs => {
+  obs.addEventListener('input', function () {
+    this.classList.remove('just-obrig');
+    const id = this.id.replace('obs-', '');
+    const aviso = document.getElementById('aviso-' + id);
+    if (aviso) aviso.style.display = 'none';
+  });
+});
+
+document.addEventListener('DOMContentLoaded', atualizarTotais);
+document.querySelectorAll('.qtd-input').forEach(input => {
+  input.addEventListener('input', atualizarTotais);
+});
+
+// Filtro por descrição
+const buscaInput = document.getElementById('busca-item');
+if (buscaInput) {
+  buscaInput.addEventListener('input', function () {
+    const termo = this.value.toLowerCase().trim();
+    let visiveis = 0;
+    document.querySelectorAll('.item-row').forEach(tr => {
+      const mostrar = !termo || tr.dataset.descricao.includes(termo);
+      tr.style.display = mostrar ? '' : 'none';
+      if (mostrar) visiveis++;
+    });
+    const contador = document.getElementById('contador-filtro');
+    if (contador) contador.textContent = termo ? `${visiveis} item(ns) encontrado(s)` : '';
+  });
+}
+</script>
+{% endblock %}

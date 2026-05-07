@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% block title %}{% if item %}Editar Item {{ item.numero }}{% else %}Adicionar Item{% endif %} – IRP CT/UFPB{% endblock %}
+
+{% block extra_head %}
+<style>
+  .form-label { font-size: .875rem; font-family: 'Open Sans', sans-serif; }
+  .form-control, .form-select, .form-text { font-family: 'Open Sans', sans-serif; font-size: .875rem; }
+  .text-danger.small { font-family: 'Open Sans', sans-serif; }
+  .secao-titulo {
+    font-size: .72rem; font-weight: 700; letter-spacing: .05em;
+    text-transform: uppercase; color: #6c757d;
+    padding-bottom: .4rem; border-bottom: 1px solid #dee2e6;
+    margin-bottom: 1rem; font-family: 'Open Sans', sans-serif;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb small" style="font-family:'Open Sans',sans-serif">
+    <li class="breadcrumb-item"><a href="{% url 'gestao_irp_list' %}">IRPs</a></li>
+    {% if item %}
+    <li class="breadcrumb-item"><a href="{% url 'gestao_item_list' item.irp.pk %}">{{ item.irp.titulo }}</a></li>
+    <li class="breadcrumb-item active">Editar Item {{ item.numero }}</li>
+    {% else %}
+    <li class="breadcrumb-item"><a href="{% url 'gestao_item_list' irp.pk %}">{{ irp.titulo }}</a></li>
+    <li class="breadcrumb-item active">Adicionar Item</li>
+    {% endif %}
+  </ol>
+</nav>
+
+<div class="d-flex align-items-center mb-3">
+  <h4 class="fw-bold mb-0" style="font-family:'Open Sans',sans-serif">
+    {% if item %}
+    <i class="bi bi-pencil-square me-2 text-primary"></i>Editar Item {{ item.numero }}
+    {% else %}
+    <i class="bi bi-plus-circle me-2 text-primary"></i>Adicionar Item
+    {% endif %}
+  </h4>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white py-2">
+    <span class="fw-semibold" style="font-family:'Open Sans',sans-serif;font-size:.875rem">
+      <i class="bi bi-box-seam me-1 text-muted"></i>Dados do Item
+    </span>
+  </div>
+  <div class="card-body pt-3">
+    <form method="post">
+      {% csrf_token %}
+
+      <!-- Linha 1: Nº | Unid. | Rubrica | Nº DFD | CATMAT -->
+      <div class="row g-3 mb-3">
+        <div class="col-sm-2 col-md-1">
+          <label class="form-label fw-semibold">
+            {{ form.numero.label }} <span class="text-danger">*</span>
+          </label>
+          {{ form.numero }}
+          {% for err in form.numero.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label fw-semibold">
+            {{ form.unidade.label }} <span class="text-danger">*</span>
+          </label>
+          {{ form.unidade }}
+          {% for err in form.unidade.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+        </div>
+        <div class="col-sm-4 col-md-3">
+          <label class="form-label fw-semibold">{{ form.rubrica.label }}</label>
+          {{ form.rubrica }}
+          {% for err in form.rubrica.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label fw-semibold">{{ form.numero_dfd.label }}</label>
+          {{ form.numero_dfd }}
+          {% for err in form.numero_dfd.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label fw-semibold">{{ form.codigo_catmat.label }}</label>
+          {{ form.codigo_catmat }}
+          {% for err in form.codigo_catmat.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+        </div>
+      </div>
+
+      <!-- Linha 2: Descrição -->
+      <div class="mb-3">
+        <label class="form-label fw-semibold">
+          {{ form.descricao.label }} <span class="text-danger">*</span>
+        </label>
+        {{ form.descricao }}
+        {% for err in form.descricao.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+      </div>
+
+      <!-- Linha 3: Valor Ref. | Qtd. Total -->
+      <div class="row g-3 mb-4">
+        <div class="col-sm-4 col-md-3">
+          <label class="form-label fw-semibold">
+            {{ form.preco_estimado.label }} <span class="text-danger">*</span>
+          </label>
+          {{ form.preco_estimado }}
+          {% for err in form.preco_estimado.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+        </div>
+        <div class="col-sm-4 col-md-3">
+          <label class="form-label fw-semibold">
+            {{ form.quantidade_total.label }}
+            <span class="text-muted fw-normal small">(opcional)</span>
+          </label>
+          {{ form.quantidade_total }}
+          {% for err in form.quantidade_total.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+        </div>
+      </div>
+
+      <div class="d-flex gap-2 pt-3 border-top">
+        <button type="submit" class="btn btn-primary fw-semibold"
+                style="font-family:'Open Sans',sans-serif">
+          <i class="bi bi-save me-1"></i>Salvar
+        </button>
+        {% if item %}
+        <a href="{% url 'gestao_item_list' item.irp.pk %}" class="btn btn-outline-secondary"
+           style="font-family:'Open Sans',sans-serif">Cancelar</a>
+        {% else %}
+        <a href="{% url 'gestao_item_list' irp.pk %}" class="btn btn-outline-secondary"
+           style="font-family:'Open Sans',sans-serif">Cancelar</a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

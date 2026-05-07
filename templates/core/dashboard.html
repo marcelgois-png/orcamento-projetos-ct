@@ -1,0 +1,680 @@
+{% extends 'base.html' %}
+{% load core_tags l10n %}
+
+{% block title %}Painel de Controle – IRP CT/UFPB{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+  .dash-label { font-family:'Open Sans',sans-serif; font-size:.72rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#6c757d; }
+  .kpi-val    { font-family:'Open Sans',sans-serif; font-size:1.6rem; font-weight:700; line-height:1.1; }
+  .kpi-sub    { font-family:'Open Sans',sans-serif; font-size:.78rem; color:#6c757d; }
+  .setor-raiz-row { cursor:pointer; }
+  .setor-raiz-row:hover { background:#f8f9fa; }
+  .sub-row { background:#fdfdfe; }
+  .sub-row td:first-child { padding-left:2.2rem; }
+  .toggle-icon { transition:transform .2s; display:inline-block; }
+  .expanded .toggle-icon { transform:rotate(90deg); }
+  .pct-bar-wrap { background:#e9ecef; border-radius:4px; height:6px; min-width:50px; }
+  .pct-bar      { background:#0d6efd; border-radius:4px; height:6px; }
+  .filtro-label { font-family:'Open Sans',sans-serif; font-size:.78rem; font-weight:600; color:#6c757d; margin-bottom:2px; }
+  .filtros-sticky { position: sticky; top: var(--tb-h); z-index: 2200; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  /* card-header da tabela fica abaixo do filtro sticky */
+  #card-tabela-irp .card-header { top: var(--dash-sticky-top, var(--tb-h)); }
+  #grafico-solicitante-scroll::-webkit-scrollbar { width: 6px; }
+  #grafico-solicitante-scroll::-webkit-scrollbar-thumb { background: #dee2e6; border-radius: 3px; }
+
+  /* ── Tabela Resumo por IRP ────────────────────────────────────────── */
+  #card-tabela-irp > .card-body { padding: 0; }
+  .table-scroll-container-dash {
+    overflow-x: auto; position: relative;
+    border-radius: 8px 8px 0 0;
+  }
+  .table-scroll-container-dash::-webkit-scrollbar { width: 6px; height: 6px; }
+  .table-scroll-container-dash::-webkit-scrollbar-thumb { background: #dee2e6; border-radius: 3px; }
+  .tabela-irp-dash {
+    table-layout: fixed; width: max-content; min-width: 100%;
+    margin-bottom: 0; border-collapse: separate; border-spacing: 0;
+  }
+  .tabela-irp-dash th, .tabela-irp-dash td {
+    font-size: 0.675rem !important; line-height: 1.2;
+    white-space: nowrap; vertical-align: middle !important;
+  }
+  .tabela-irp-dash thead th {
+    z-index: 1500; background-color: #f8f9fa !important;
+    border-bottom: 2px solid #dee2e6 !important;
+    font-size: 0.6rem !important; white-space: normal !important;
+    vertical-align: middle !important; text-align: center;
+  }
+  .sticky-col-irp {
+    position: sticky !important; background-color: #fff !important;
+    z-index: 1010; border-right: 1px solid #dee2e6;
+  }
+  .tabela-irp-dash thead th.sticky-col-irp { z-index: 1520; }
+  .last-sticky-irp {
+    border-right: 2px solid #dee2e6 !important;
+    box-shadow: 4px 0 8px rgba(0,0,0,0.05);
+  }
+  .tabela-irp-dash tfoot td {
+    position: sticky !important; bottom: 0; z-index: 1500;
+    background-color: #f8f9fa !important;
+    border-top: 2px solid #dee2e6 !important;
+  }
+  .tabela-irp-dash tfoot td.sticky-col-irp { z-index: 1520 !important; }
+  .tfoot-spacer-irp { border-right: none !important; box-shadow: none !important; }
+  /* Column widths */
+  .col-irp-nome { width: 220px !important; min-width: 220px !important; max-width: 220px !important; }
+  .col-irp-resp { width: 90px  !important; min-width: 90px  !important; max-width: 90px  !important; }
+  .col-irp-val  { width: 140px !important; min-width: 140px !important; max-width: 140px !important; }
+  .col-irp-qty  { width: 80px  !important; min-width: 80px  !important; max-width: 80px  !important; }
+  /* Description ellipsis */
+  .desc-text-irp {
+    display: inline-block; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; max-width: 185px; vertical-align: bottom; cursor: help;
+  }
+  /* Sub-item row */
+  .sub-item-row td { background-color: #fafbfc; }
+  .irp-header-row { cursor: pointer; }
+  .irp-header-row:hover td { background-color: #f0f4ff !important; }
+  .toggle-icon { transition: transform .2s; display: inline-block; }
+  .expanded .toggle-icon { transform: rotate(90deg); }
+
+  /* Tom Select — filtros do dashboard (multi-select com busca) */
+  .ts-dash.ts-wrapper .ts-control {
+    min-height: 31px; padding: 3px 8px; border-radius: 6px;
+    border-color: #dee2e6; background: #fff; gap: 4px; cursor: text;
+  }
+  .ts-dash.ts-wrapper.focus .ts-control {
+    border-color: #86b7fe; box-shadow: 0 0 0 .2rem rgba(13,110,253,.15);
+  }
+  .ts-dash.ts-wrapper .ts-control input {
+    font-size: .82rem; font-family: 'Open Sans', sans-serif;
+  }
+  .ts-dash .ts-control .item {
+    background: #e7f1ff; color: #0d6efd; border: 1px solid #c7d8fc;
+    border-radius: 4px; font-size: .72rem; font-weight: 600; padding: 1px 5px;
+  }
+  .ts-dash .ts-control .item .remove {
+    color: #0d6efd; border-left: 1px solid #c7d8fc; margin-left: 4px; padding-left: 4px;
+  }
+  .ts-dash .ts-dropdown {
+    font-family: 'Open Sans', sans-serif; font-size: .82rem;
+    border-color: #dee2e6; border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.1);
+  }
+  .ts-dash .ts-dropdown .option { padding: 6px 12px; }
+  .ts-dash .ts-dropdown .option.active { background: #e7f1ff; color: #0d6efd; }
+  .ts-dash .ts-dropdown .option.selected { background: #f0f4ff; color: #0a58ca; font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h4 class="fw-bold mb-0" style="font-family:'Open Sans',sans-serif">
+    <i class="bi bi-bar-chart-fill me-2 text-primary"></i>Painel de Controle de IRPs
+  </h4>
+  <span class="badge bg-secondary" style="font-family:'Open Sans',sans-serif">Acesso público</span>
+</div>
+
+<!-- ── Filtros ─────────────────────────────────────────────────────────────── -->
+<div class="card border-0 shadow-sm mb-4 filtros-sticky">
+  <div class="card-body py-2">
+    <form method="get" id="form-filtros">
+
+      <!-- Linha 1: IRP | Pregão | Setor -->
+      <div class="row g-2 align-items-end mb-3">
+        <!-- IRP -->
+        <div class="col-12 col-md-4">
+          <div class="filtro-label"><i class="bi bi-file-earmark-text me-1"></i>IRP</div>
+          <select name="irp" id="sel-irp" class="ts-dash" multiple>
+            {% for i in irps %}
+            <option value="{{ i.pk }}" {% if i.pk|stringformat:'s' in irp_ids_param %}selected{% endif %}>{{ i.titulo }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Pregão Eletrônico -->
+        <div class="col-12 col-md-4">
+          <div class="filtro-label"><i class="bi bi-bank me-1"></i>Pregão Eletrônico</div>
+          <select name="pregao" id="sel-pregao" class="ts-dash" multiple>
+            {% for p in pregoes %}
+            <option value="{{ p.pk }}" {% if p.pk|stringformat:'s' in pregao_ids_param %}selected{% endif %}>{{ p.numero }} — {{ p.irp.titulo|truncatechars:30 }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Setor -->
+        <div class="col-12 col-md-4">
+          <div class="filtro-label"><i class="bi bi-diagram-3 me-1"></i>Setor</div>
+          <select name="setor" id="sel-setor" class="ts-dash" multiple>
+            {% if setores_adm %}
+            <optgroup label="── Setores Administrativos">
+              {% for s in setores_adm %}<option value="{{ s.pk }}" {% if s.pk|stringformat:'s' in setor_ids_param %}selected{% endif %}>{{ s.nome }}</option>{% endfor %}
+            </optgroup>
+            {% endif %}
+            {% if setores_dept %}
+            <optgroup label="── Departamentos e Laboratórios">
+              {% for s in setores_dept %}<option value="{{ s.pk }}" {% if s.pk|stringformat:'s' in setor_ids_param %}selected{% endif %}>{{ s.nome }}</option>{% endfor %}
+            </optgroup>
+            {% endif %}
+            {% if setores_coord %}
+            <optgroup label="── Coordenações">
+              {% for s in setores_coord %}<option value="{{ s.pk }}" {% if s.pk|stringformat:'s' in setor_ids_param %}selected{% endif %}>{{ s.nome }}</option>{% endfor %}
+            </optgroup>
+            {% endif %}
+          </select>
+        </div>
+      </div>
+
+      <!-- Linha 2: Fase | Solicitante | Botões -->
+      <div class="row g-2 align-items-end">
+        <!-- Fase da IRP -->
+        <div class="col-12 col-md-4">
+          <div class="filtro-label"><i class="bi bi-diagram-2 me-1"></i>Fase da IRP</div>
+          <select name="fase" id="sel-fase" class="ts-dash" multiple>
+            {% for val, label in fase_choices %}
+            <option value="{{ val }}" {% if val in fase_ids_param %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Solicitante -->
+        <div class="col-12 col-md-4">
+          <div class="filtro-label"><i class="bi bi-person me-1"></i>Solicitante</div>
+          <select name="solicitante" id="sel-solicitante" class="ts-dash" multiple>
+            {% for u in solicitantes %}
+            <option value="{{ u.pk }}" {% if u.pk|stringformat:'s' in solicitante_ids_param %}selected{% endif %}>
+              {% if u.perfil.nome_completo %}{{ u.perfil.nome_completo }}{% else %}{{ u.username }}{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Botões Filtrar e Limpar -->
+        <div class="col-12 col-md-4 d-flex gap-2">
+          <button type="submit" class="btn btn-primary btn-sm fw-semibold flex-grow-1" style="font-family:'Open Sans',sans-serif; height: 31px;">
+            <i class="bi bi-funnel me-1"></i>Filtrar
+          </button>
+          <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary btn-sm flex-grow-1" style="font-family:'Open Sans',sans-serif; height: 31px; display: inline-flex; align-items: center; justify-content: center;">
+            <i class="bi bi-x-lg me-1"></i>Limpar
+          </a>
+        </div>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+{% if dados %}
+
+<!-- ── KPI cards ──────────────────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md col-lg">
+    <div class="card border-0 shadow-sm text-center h-100">
+      <div class="card-body py-3">
+        <div class="kpi-val text-primary">{{ dados.total_respondentes }}</div>
+        <div class="kpi-sub">Respondentes</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md col-lg">
+    <div class="card border-0 shadow-sm text-center h-100">
+      <div class="card-body py-3">
+        <div class="kpi-val text-primary">{{ dados.total_respostas }}</div>
+        <div class="kpi-sub">Respostas recebidas</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md col-lg">
+    <div class="card border-0 shadow-sm text-center h-100">
+      <div class="card-body py-3">
+        <div class="kpi-val text-primary">{{ dados.total_itens_irp }}</div>
+        <div class="kpi-sub">Itens na(s) IRP(s)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md col-lg">
+    <div class="card border-0 shadow-sm text-center h-100">
+      <div class="card-body py-3">
+        <div class="kpi-val text-primary" style="font-size:1.3rem">{{ dados.total_r_intenc|brl }}</div>
+        <div class="kpi-sub">R$ Intencionados</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md col-lg">
+    <div class="card border-0 shadow-sm text-center h-100" style="background:var(--ct-primary)">
+      <div class="card-body py-3">
+        <div class="kpi-val" style="font-size:1.3rem;color:#fff">{{ dados.total_r_hom|brl }}</div>
+        <div class="kpi-sub" style="color:rgba(255,255,255,.75)">R$ Homologados</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-3 col-lg">
+    <div class="card border-0 shadow-sm text-center h-100" style="background:#283E4C">
+      <div class="card-body py-3">
+        <div class="kpi-val" style="font-size:1.3rem;color:#fff">{{ dados.total_r_lic|brl }}</div>
+        <div class="kpi-sub" style="color:rgba(255,255,255,.75)">R$ Licitados</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Gráficos ────────────────────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+  <!-- Volume por setor -->
+  <div class="col-12 col-xl-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white fw-semibold border-0 d-flex align-items-center gap-3" style="font-size:.875rem">
+        <span><i class="bi bi-bar-chart me-1"></i> Volume financeiro intencionado por setor</span>
+        <span class="d-flex gap-3 ms-2" style="font-size:.75rem;font-weight:400">
+          <span><span style="display:inline-block;width:10px;height:10px;background:#283E4C;border-radius:2px;margin-right:4px"></span>Adm.</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#A5B1BB;border-radius:2px;margin-right:4px"></span>Dept.</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#C6543C;border-radius:2px;margin-right:4px"></span>Coord.</span>
+        </span>
+      </div>
+      <div class="card-body p-0" id="grafico-setores-scroll-dash" style="overflow-y:auto;max-height:320px;">
+        <div id="grafico-setores-wrap-dash">
+          <canvas id="grafico-setores-dash"></canvas>
+        </div>
+      </div>
+      <div class="card-footer bg-white border-top-0 pt-0 pb-2 px-3" style="font-size:.68rem;color:#6c757d;font-family:'Open Sans',sans-serif">
+        <i class="bi bi-info-circle me-1"></i>Valores intencionados pelos solicitantes — podem diferir dos valores homologados pela chefia.
+      </div>
+    </div>
+  </div>
+
+  <!-- Volume por solicitante -->
+  <div class="col-12 col-xl-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white fw-semibold border-0" style="font-size:.875rem">
+        <i class="bi bi-person-fill me-1"></i> Volume financeiro intencionado por solicitante
+      </div>
+      <div class="card-body p-0" id="grafico-solicitante-scroll" style="overflow-y:auto;max-height:320px;">
+        <div id="grafico-solicitante-wrap">
+          <canvas id="grafico-solicitante"></canvas>
+        </div>
+      </div>
+      <div class="card-footer bg-white border-top-0 pt-0 pb-2 px-3" style="font-size:.68rem;color:#6c757d;font-family:'Open Sans',sans-serif">
+        <i class="bi bi-info-circle me-1"></i>Valores intencionados pelos solicitantes — podem diferir dos valores homologados pela chefia.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Tabela por IRP ──────────────────────────────────────────────────────── -->
+<div class="card border-0 shadow-sm" id="card-tabela-irp">
+  <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center sticky-top"
+       style="z-index: 1999; box-shadow: 0 2px 4px rgba(0,0,0,.05);">
+    <span class="fw-semibold" style="font-family:'Open Sans',sans-serif;font-size:.875rem">
+      <i class="bi bi-table me-1 text-muted"></i>Resumo de intenções por IRP
+    </span>
+    <span class="text-muted small" style="font-family:'Open Sans',sans-serif">
+      <i class="bi bi-chevron-right me-1 opacity-50"></i>Clique em uma IRP para expandir os itens
+    </span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-scroll-container-dash" id="irp-table-container">
+      <table class="table table-hover tabela-irp-dash mb-0" id="tabela-irp">
+        <thead class="table-light" id="thead-irp">
+          <tr>
+            <th class="text-start sticky-col-irp col-irp-nome">IRP</th>
+            <th class="text-center sticky-col-irp col-irp-resp">Respondentes</th>
+            <th class="text-end col-irp-val">R$ Intencionados</th>
+            <th class="text-center col-irp-qty">Qtd. Int.</th>
+            <th class="text-end col-irp-val">R$ Homologados</th>
+            <th class="text-center col-irp-qty">Qtd. Hom.</th>
+            <th class="text-end col-irp-val">R$ Licitados</th>
+            <th class="text-center col-irp-qty">Qtd. Lic.</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-irp">
+          {% for row in por_irp_tabela %}
+          <!-- IRP header row -->
+          <tr class="irp-header-row" data-irp="{{ forloop.counter0 }}" onclick="toggleIrp({{ forloop.counter0 }}, this)">
+            <td class="sticky-col-irp col-irp-nome fw-semibold text-primary">
+              <i class="bi bi-chevron-right toggle-icon me-1 text-muted" style="font-size:.7rem"></i>
+              <span class="desc-text-irp" title="{{ row.irp.titulo }}{% if row.irp.descricao %} — {{ row.irp.descricao }}{% endif %}">{{ row.irp.titulo }}</span>
+            </td>
+            <td class="text-center sticky-col-irp col-irp-resp fw-semibold text-primary">{{ row.n_respostas }}</td>
+            <td class="text-end col-irp-val fw-semibold text-primary">{{ row.r_intenc|brl }}</td>
+            <td class="text-center col-irp-qty text-muted">{{ row.q_intenc|floatformat:"g" }}</td>
+            <td class="text-end col-irp-val fw-semibold">
+              {% if row.hom_pendente %}
+                <span class="text-warning"><i class="bi bi-hourglass-split me-1"></i>Pendente</span>
+              {% elif row.r_hom %}
+                <span class="text-primary">{{ row.r_hom|brl }}</span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-center col-irp-qty text-muted">
+              {% if not row.hom_pendente and row.q_hom %}{{ row.q_hom|floatformat:"g" }}{% else %}—{% endif %}
+            </td>
+            <td class="text-end col-irp-val fw-semibold text-success">
+              {% if row.r_lic %}{{ row.r_lic|brl }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-center col-irp-qty text-muted">
+              {% if row.q_lic %}{{ row.q_lic|floatformat:"g" }}{% else %}—{% endif %}
+            </td>
+          </tr>
+          <!-- Item sub-rows (hidden by default) -->
+          {% for item_row in row.itens %}
+          <tr class="sub-irp-{{ forloop.parentloop.counter0 }} sub-item-row" style="display:none">
+            <td class="sticky-col-irp col-irp-nome" style="background:#fafbfc !important">
+              <span class="ms-3 text-muted" style="font-size:.65rem">{{ item_row.item.numero }}</span>
+              <span class="desc-text-irp" style="max-width:160px"
+                    title="{{ item_row.item.descricao }}">
+                {{ item_row.item.descricao }}
+              </span>
+            </td>
+            <td class="text-center sticky-col-irp col-irp-resp text-muted" style="background:#fafbfc !important">{{ item_row.n_respondentes }}</td>
+            <td class="text-end col-irp-val text-muted">{{ item_row.r_intenc|brl }}</td>
+            <td class="text-center col-irp-qty text-muted">{{ item_row.q_intenc|floatformat:"g" }}</td>
+            <td class="text-end col-irp-val">
+              {% if row.hom_pendente %}
+                <span class="text-warning opacity-60"><i class="bi bi-hourglass-split"></i></span>
+              {% elif item_row.r_hom %}
+                <span class="text-primary">{{ item_row.r_hom|brl }}</span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-center col-irp-qty text-muted">
+              {% if not row.hom_pendente and item_row.q_hom %}{{ item_row.q_hom|floatformat:"g" }}{% else %}—{% endif %}
+            </td>
+            <td class="text-end col-irp-val text-success">
+              {% if item_row.r_lic %}{{ item_row.r_lic|brl }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-center col-irp-qty text-muted">
+              {% if item_row.q_lic %}{{ item_row.q_lic|floatformat:"g" }}{% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          {% empty %}
+          <tr>
+            <td colspan="6" class="text-center text-muted py-5" style="font-family:'Open Sans',sans-serif">
+              <i class="bi bi-inbox fs-2 d-block mb-2 opacity-25"></i>
+              Nenhuma intenção registrada.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% if por_irp_tabela %}
+        <tfoot class="table-light fw-bold" id="tfoot-irp">
+          <tr>
+            <td class="sticky-col-irp col-irp-nome tfoot-spacer-irp"></td>
+            <td class="text-end sticky-col-irp col-irp-resp" style="font-weight:700">TOTAL:</td>
+            <td class="text-end col-irp-val text-primary fw-bold">{{ dados.total_r_intenc|brl }}</td>
+            <td class="col-irp-qty"></td>
+            <td class="text-end col-irp-val fw-bold" style="color:var(--ct-primary)">
+              {% if dados.total_r_hom %}{{ dados.total_r_hom|brl }}{% else %}—{% endif %}
+            </td>
+            <td class="col-irp-qty"></td>
+            <td class="text-end col-irp-val fw-bold text-success">
+              {% if dados.total_r_lic %}{{ dados.total_r_lic|brl }}{% else %}—{% endif %}
+            </td>
+            <td class="col-irp-qty"></td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+    <!-- Rodapé informativo -->
+    <div class="px-3 py-2 bg-white border-top" style="font-size:.68rem;font-family:'Open Sans',sans-serif;color:#6c757d">
+      <i class="bi bi-info-circle me-1"></i>
+      Passe o cursor sobre a <strong>descrição do item</strong> para ver o texto completo.
+    </div>
+  </div>
+</div>
+
+{% else %}
+<div class="alert alert-secondary border-0 shadow-sm" style="font-family:'Open Sans',sans-serif">
+  <i class="bi bi-inbox me-1"></i>
+  Nenhuma intenção registrada para os filtros selecionados.
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+/* ── Toggle IRP item rows ───────────────────────────────────────────────── */
+function toggleIrp(idx, row) {
+  const subs = document.querySelectorAll('.sub-irp-' + idx);
+  if (!subs.length) return;
+  const hidden = subs[0].style.display === 'none';
+  subs.forEach(tr => tr.style.display = hidden ? '' : 'none');
+  row.classList.toggle('expanded', hidden);
+}
+
+/* ── Sticky columns (IRP table) ─────────────────────────────────────────── */
+function syncStickyIrp() {
+  const table    = document.getElementById('tabela-irp');
+  const firstRow = table?.querySelector('tbody tr');
+  if (!firstRow) return;
+  const cells = firstRow.querySelectorAll('.sticky-col-irp');
+  let left = 0;
+  cells.forEach(function (cell, idx) {
+    const leftPx = left + 'px';
+    const col    = idx + 1;
+    table.querySelectorAll('tr th:nth-child(' + col + '), tr td:nth-child(' + col + ')').forEach(function (el) {
+      if (el.classList.contains('sticky-col-irp')) el.style.left = leftPx;
+    });
+    if (idx === cells.length - 1) {
+      table.querySelectorAll('tr th:nth-child(' + col + '), tr td:nth-child(' + col + ')').forEach(function (el) {
+        el.classList.add('last-sticky-irp');
+      });
+    }
+    left += cell.offsetWidth;
+  });
+}
+
+/* ── Thead fixo via transform (IRP table) ───────────────────────────────── */
+(function () {
+  const thead     = document.querySelector('#tabela-irp thead');
+  const container = document.getElementById('irp-table-container');
+  const card      = container?.closest('.card');
+  const headerBar = card?.querySelector('.card-header');
+  if (!thead || !container || !headerBar) return;
+
+  function fixTheadIrp() {
+    const hb = headerBar.getBoundingClientRect().bottom;
+    const ct = container.getBoundingClientRect().top;
+    const cb = container.getBoundingClientRect().bottom;
+    const th = thead.offsetHeight;
+    if (ct < hb && cb > hb + th) {
+      thead.style.transform = 'translateY(' + (hb - ct) + 'px)';
+      thead.style.position  = 'relative';
+      thead.style.zIndex    = '1500';
+    } else {
+      thead.style.transform = '';
+      thead.style.position  = '';
+    }
+  }
+  window.addEventListener('scroll', fixTheadIrp, { passive: true });
+  fixTheadIrp();
+})();
+
+/* ── Sticky offset: empurra card-header da tabela abaixo do filtro ──────── */
+function updateDashStickyTop() {
+  const filtros = document.querySelector('.filtros-sticky');
+  if (!filtros) return;
+  const tbH      = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--tb-h')) || 54;
+  const filtrosH = filtros.offsetHeight;
+  document.documentElement.style.setProperty('--dash-sticky-top', (tbH + filtrosH) + 'px');
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  updateDashStickyTop();
+  syncStickyIrp();
+  window.addEventListener('resize', function () {
+    updateDashStickyTop();
+    syncStickyIrp();
+  });
+});
+
+if (typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
+
+const fmtBRL = v => 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+/* ── Gráfico por setor ──────────────────────────────────────────────────── */
+const chartRawLabelsDash = [{% for r in por_nivel_chart %}"{{ r.nome|escapejs }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+const chartValuesDash    = [{% for r in por_nivel_chart %}{{ r.valor|unlocalize|default:0 }}{% if not forloop.last %},{% endif %}{% endfor %}];
+const chartColorsDash    = [{% for r in por_nivel_chart %}"{{ r.cor }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+const chartNiveisDash    = [{% for r in por_nivel_chart %}"{{ r.nivel|escapejs }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+
+const wrapDash = document.getElementById('grafico-setores-wrap-dash');
+
+if (wrapDash) {
+  if (chartRawLabelsDash.length === 0) {
+    wrapDash.style.height = '100px';
+    wrapDash.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100 text-muted small">'
+      + '<i class="bi bi-inbox me-2 fs-5 opacity-50"></i>Nenhuma intenção registrada para os filtros selecionados.</div>';
+  } else {
+    function splitYLabelDash(str) {
+      const words = str.split(' ');
+      const lines = [];
+      let cur = '';
+      for (const w of words) {
+        if (cur && (cur + ' ' + w).length > 18) { lines.push(cur); cur = w; }
+        else { cur = cur ? cur + ' ' + w : w; }
+      }
+      if (cur) lines.push(cur);
+      return lines;
+    }
+    const chartLabelsDash = chartRawLabelsDash.map(splitYLabelDash);
+
+    const BAR_H = 40, HEADER_H = 60, MIN_H = 160;
+    wrapDash.style.height = Math.max(chartRawLabelsDash.length * BAR_H + HEADER_H, MIN_H) + 'px';
+
+    const datalabelsPluginDash = typeof ChartDataLabels !== 'undefined' ? {
+      anchor: 'end', align: 'end',
+      formatter: v => v > 0 ? fmtBRL(v) : '',
+      font: { size: 8, weight: '600' },
+      color: '#495057', clip: false,
+    } : false;
+
+    new Chart(document.getElementById('grafico-setores-dash'), {
+      type: 'bar',
+      data: {
+        labels: chartLabelsDash,
+        datasets: [{
+          label: 'R$ Intencionado',
+          data: chartValuesDash,
+          backgroundColor: chartColorsDash,
+          borderRadius: 0,
+          barThickness: 28,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: ctx => chartRawLabelsDash[ctx[0].dataIndex],
+              beforeTitle: ctx => chartNiveisDash[ctx[0].dataIndex],
+              label: ctx => ' ' + fmtBRL(ctx.raw),
+            }
+          },
+          datalabels: datalabelsPluginDash,
+        },
+        layout: { padding: { top: 10, bottom: 10, left: 10, right: 80 } },
+        scales: {
+          x: { ticks: { callback: v => 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:0}), font: { size: 9 }, maxRotation: 0, minRotation: 0 } },
+          y: { ticks: { font: { size: 9 }, autoSkip: false } }
+        }
+      }
+    });
+  }
+}
+
+/* ── Gráfico por solicitante ────────────────────────────────────────────── */
+const solLabels = [{% for r in por_solicitante_chart %}"{{ r.nome|escapejs }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+const solValues = [{% for r in por_solicitante_chart %}{{ r.valor|unlocalize|default:0 }}{% if not forloop.last %},{% endif %}{% endfor %}];
+const wrapSol = document.getElementById('grafico-solicitante-wrap');
+
+if (wrapSol) {
+  if (solLabels.length === 0) {
+    wrapSol.style.height = '100px';
+    wrapSol.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100 text-muted small"><i class="bi bi-inbox me-2 fs-5 opacity-50"></i>Nenhuma intenção registrada.</div>';
+  } else {
+    function splitYLabelSol(str) {
+      const words = str.split(' ');
+      const lines = [];
+      let cur = '';
+      for (const w of words) {
+        if (cur && (cur + ' ' + w).length > 20) { lines.push(cur); cur = w; }
+        else { cur = cur ? cur + ' ' + w : w; }
+      }
+      if (cur) lines.push(cur);
+      return lines;
+    }
+    const BAR_H_SOL = 40, HEADER_H_SOL = 60, MIN_H_SOL = 160;
+    wrapSol.style.height = Math.max(solLabels.length * BAR_H_SOL + HEADER_H_SOL, MIN_H_SOL) + 'px';
+
+    const datalabelsPluginSol = typeof ChartDataLabels !== 'undefined' ? {
+      anchor: 'end', align: 'end',
+      formatter: v => v > 0 ? fmtBRL(v) : '',
+      font: { size: 8, weight: '600' },
+      color: '#495057', clip: false,
+    } : false;
+
+    new Chart(document.getElementById('grafico-solicitante'), {
+      type: 'bar',
+      data: {
+        labels: solLabels.map(splitYLabelSol),
+        datasets: [{
+          label: 'R$ Intencionado',
+          data: solValues,
+          backgroundColor: '#4C7FA5',
+          borderRadius: 0,
+          barThickness: 28,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: ctx => solLabels[ctx[0].dataIndex],
+              label: ctx => ' ' + fmtBRL(ctx.raw),
+            }
+          },
+          datalabels: datalabelsPluginSol,
+        },
+        layout: { padding: { top: 10, bottom: 10, left: 10, right: 80 } },
+        scales: {
+          x: { ticks: { callback: v => 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:0}), font: { size: 9 }, maxRotation: 0, minRotation: 0 } },
+          y: { ticks: { font: { size: 9 }, autoSkip: false } }
+        }
+      }
+    });
+  }
+}
+
+// Tom Select — todos os filtros do dashboard (multi-select com busca)
+document.querySelectorAll('select.ts-dash').forEach(function(el) {
+  const placeholders = {
+    'sel-irp':         'Todas as IRPs',
+    'sel-pregao':      'Todos os pregões',
+    'sel-setor':       'Todos os setores respondentes',
+    'sel-fase':        'Todas as fases',
+    'sel-solicitante': 'Todos',
+  };
+  new TomSelect(el, {
+    plugins: ['remove_button'],
+    placeholder: placeholders[el.id] || 'Selecione...',
+    selectOnTab: true,
+    onInitialize: function() {
+      this.wrapper.style.fontFamily = "'Open Sans', sans-serif";
+      this.wrapper.style.fontSize = '.875rem';
+      if (placeholders[el.id]) this.control_input.placeholder = placeholders[el.id];
+    },
+  });
+});
+</script>
+{% endblock %}

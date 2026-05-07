@@ -1,0 +1,310 @@
+/* ═══════════════════════════════════════════════════════════════════
+   IRP – CT/UFPB  |  Estilos customizados
+   Cor primária derivada da identidade visual do CT/UFPB: #465C78
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Tom Select — ajustes visuais para filtros ────────────────────── */
+.ts-wrapper.ts-filtro,
+.ts-filtro + .ts-wrapper {
+  font-family: 'Open Sans', sans-serif;
+  font-size: .875rem;
+}
+.ts-filtro.ts-wrapper .ts-control {
+  min-height: 31px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border-color: #dee2e6;
+  background: #fff;
+  gap: 4px;
+  cursor: text;
+}
+.ts-filtro.ts-wrapper .ts-control input {
+  font-size: .82rem;
+  font-family: 'Open Sans', sans-serif;
+}
+.ts-filtro.ts-wrapper.focus .ts-control {
+  border-color: #86b7fe;
+  box-shadow: 0 0 0 .2rem rgba(13,110,253,.15);
+}
+.ts-filtro .ts-control .item {
+  background: #e7f1ff;
+  color: #0d6efd;
+  border: 1px solid #c7d8fc;
+  border-radius: 4px;
+  font-size: .72rem;
+  font-weight: 600;
+  padding: 1px 5px;
+}
+.ts-filtro .ts-control .item .remove {
+  color: #0d6efd;
+  border-left: 1px solid #c7d8fc;
+  margin-left: 4px;
+  padding-left: 4px;
+}
+.ts-filtro .ts-dropdown {
+  font-family: 'Open Sans', sans-serif;
+  font-size: .82rem;
+  border-color: #dee2e6;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.1);
+}
+.ts-filtro .ts-dropdown .option {
+  padding: 6px 12px;
+}
+.ts-filtro .ts-dropdown .option.active {
+  background: #e7f1ff;
+  color: #0d6efd;
+}
+.ts-filtro .ts-dropdown .option.selected {
+  background: #f0f4ff;
+  color: #0a58ca;
+  font-weight: 600;
+}
+.ts-filtro .ts-dropdown-header {
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  padding: 6px 10px;
+}
+.ts-filtro .ts-dropdown-header .ts-dropdown-header-close { color: #6c757d; }
+
+/* ── Variáveis de cor CT/UFPB ─────────────────────────────────────── */
+:root {
+  --ct-primary:        #465C78;
+  --ct-primary-dark:   #344759;
+  --ct-primary-light:  #5a7494;
+  --ct-primary-rgb:    70, 92, 120;
+  --ct-primary-subtle: #dde4ed;
+  --ct-primary-text:   #1e2d3d;
+}
+
+/* ── Sobrescreve o azul Bootstrap em todo o sistema ─────────────────── */
+
+/* Navbar */
+.navbar.bg-primary,
+.bg-primary { background-color: var(--ct-primary) !important; }
+
+/* Botões primários */
+.btn-primary {
+  background-color: var(--ct-primary) !important;
+  border-color: var(--ct-primary) !important;
+  color: #fff !important;
+}
+.btn-primary:hover, .btn-primary:focus {
+  background-color: var(--ct-primary-dark) !important;
+  border-color: var(--ct-primary-dark) !important;
+}
+.btn-primary:disabled {
+  background-color: var(--ct-primary) !important;
+  opacity: .6;
+}
+
+/* Outline-primary */
+.btn-outline-primary {
+  color: var(--ct-primary) !important;
+  border-color: var(--ct-primary) !important;
+}
+.btn-outline-primary:hover {
+  background-color: var(--ct-primary) !important;
+  color: #fff !important;
+}
+
+/* Links */
+a { color: var(--ct-primary); }
+a:hover { color: var(--ct-primary-dark); }
+
+/* Texto primary */
+.text-primary { color: var(--ct-primary) !important; }
+
+/* Bordas e focus */
+.form-control:focus, .form-select:focus {
+  border-color: var(--ct-primary-light);
+  box-shadow: 0 0 0 .2rem rgba(var(--ct-primary-rgb), .2);
+}
+
+/* Checkboxes e radios */
+.form-check-input:checked {
+  background-color: var(--ct-primary);
+  border-color: var(--ct-primary);
+}
+.form-check-input:focus {
+  box-shadow: 0 0 0 .2rem rgba(var(--ct-primary-rgb), .2);
+}
+
+/* Badges */
+.badge.bg-primary { background-color: var(--ct-primary) !important; }
+
+/* Accordion */
+.accordion-button:not(.collapsed) {
+  background-color: var(--ct-primary-subtle);
+  color: var(--ct-primary-text);
+}
+.accordion-button:focus {
+  box-shadow: 0 0 0 .2rem rgba(var(--ct-primary-rgb), .2);
+}
+
+/* Paginação */
+.page-link { color: var(--ct-primary); }
+.page-item.active .page-link {
+  background-color: var(--ct-primary);
+  border-color: var(--ct-primary);
+}
+
+/* Navbar brand */
+.navbar-brand {
+  font-family: 'Open Sans', sans-serif;
+  font-size: 1rem;
+  letter-spacing: -.2px;
+}
+
+/* ── Cards com hover ──────────────────────────────────────────────── */
+.hover-card { transition: transform .15s ease, box-shadow .15s ease; }
+.hover-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 .5rem 1rem rgba(0,0,0,.1) !important;
+}
+
+/* ── Tabela de itens IRP ──────────────────────────────────────────── */
+.tabela-irp td, .tabela-irp th { vertical-align: middle; }
+.input-qtd { text-align: right; }
+
+/* ── Barra de totais fixa ─────────────────────────────────────────── */
+#totais-bar {
+  border-top: 2px solid #e9ecef;
+}
+#totais-bar strong { transition: all .2s; }
+
+/* ── Badges sutis (fallback Bootstrap 5.2-) ──────────────────────── */
+.bg-success-subtle { background-color: #d1e7dd; }
+.bg-warning-subtle { background-color: #fff3cd; }
+.text-success { color: #198754 !important; }
+.text-warning  { color: #856404 !important; }
+
+/* ── Scrollbar fina ───────────────────────────────────────────────── */
+.table-responsive::-webkit-scrollbar { height: 6px; }
+.table-responsive::-webkit-scrollbar-thumb { background: #dee2e6; border-radius: 3px; }
+#grafico-setores-scroll::-webkit-scrollbar,
+#grafico-setores-scroll-dash::-webkit-scrollbar { width: 6px; }
+#grafico-setores-scroll::-webkit-scrollbar-thumb,
+#grafico-setores-scroll-dash::-webkit-scrollbar-thumb { background: #dee2e6; border-radius: 3px; }
+
+/* ── Dashboard ───────────────────────────────────────────────────── */
+.card .fs-2 { line-height: 1.1; }
+
+/* ── Footer ──────────────────────────────────────────────────────── */
+footer { font-size: .8rem; }
+
+/* ── Formulários ─────────────────────────────────────────────────── */
+select.form-select, input.form-control, textarea.form-control {
+  border-color: #dee2e6;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   TABELAS GLOBAIS — padrão único para todo o sistema
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Fonte em todas as células */
+.table, .table thead th, .table tbody td, .table tfoot td {
+  font-family: 'Open Sans', sans-serif;
+}
+
+/* Cabeçalho */
+.table thead th {
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: #6c757d;
+  border-bottom: 2px solid #dee2e6 !important;
+  padding: .6rem .8rem;
+  white-space: normal;
+}
+
+/* Corpo */
+.table tbody td {
+  padding: .55rem .8rem;
+  vertical-align: middle;
+  font-size: .875rem;
+  color: #212529;
+}
+
+/* Rodapé */
+.table tfoot td {
+  padding: .6rem .8rem;
+  font-size: .875rem;
+  border-top: 2px solid #dee2e6 !important;
+  font-weight: 600;
+}
+
+/* ── Colunas de código/monospace ─────────────────────────────────── */
+.col-codigo {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: .82rem;
+  color: #6c757d;
+}
+
+/* ── Ordenação de colunas ────────────────────────────────────────── */
+th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+th.sortable:hover { background-color: #e9ecef; }
+th.sortable .sort-icon { font-size: .6rem; opacity: .35; margin-left: 3px; }
+th.sortable.asc  .sort-icon::after { content: '▲'; opacity: 1; color: #0d6efd; }
+th.sortable.desc .sort-icon::after { content: '▼'; opacity: 1; color: #0d6efd; }
+th.sortable:not(.asc):not(.desc) .sort-icon::after { content: '⇅'; }
+
+/* ── Rodapé de tabela ────────────────────────────────────────────── */
+.rodape-tabela { font-size: .8rem; color: #6c757d; }
+
+/* ── Botões de ação (ícone) ──────────────────────────────────────── */
+.acao-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 6px;
+  border: none; background: transparent;
+  font-size: .95rem; line-height: 1;
+  transition: background .15s, color .15s;
+  text-decoration: none; cursor: pointer;
+}
+.acao-btn-ver      { color: #0d6efd; } .acao-btn-ver:hover      { background:#cfe2ff; color:#084298; }
+.acao-btn-edit     { color: #0d6efd; } .acao-btn-edit:hover     { background:#cfe2ff; color:#084298; }
+.acao-btn-result   { color: #198754; } .acao-btn-result:hover   { background:#d1e7dd; color:#0a3622; }
+.acao-btn-export   { color:#198754; } .acao-btn-export:hover   { background:#d1e7dd; color:#0a3622; }
+.acao-btn-itens    { color: #6c757d; } .acao-btn-itens:hover    { background:#e9ecef; color:#212529; }
+.acao-btn-lock     { color: #fd7e14; } .acao-btn-lock:hover     { background:#ffe5d0; color:#7d3a00; }
+.acao-btn-unlock   { color: #198754; } .acao-btn-unlock:hover   { background:#d1e7dd; color:#0a3622; }
+.acao-btn-liberar  { color: #198754; } .acao-btn-liberar:hover  { background:#d1e7dd; color:#0a3622; }
+.acao-btn-off      { color: #fd7e14; } .acao-btn-off:hover      { background:#ffe5d0; color:#7d3a00; }
+.acao-btn-on       { color: #198754; } .acao-btn-on:hover       { background:#d1e7dd; color:#0a3622; }
+.acao-btn-del      { color: #dc3545; } .acao-btn-del:hover      { background:#f8d7da; color:#58151c; }
+
+/* ── Badges de fase/situação ─────────────────────────────────────── */
+.fase-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: .72rem; font-weight: 600; border-radius: 20px;
+  padding: 2px 10px; white-space: nowrap;
+}
+/* Fases da IRP — padrão unificado em todas as páginas */
+.fase-cadastro    { background:#eef3ff;  color:#0d6efd; border:1px solid #c7d8fc; }
+.fase-respostas   { background:#e8f5ee;  color:#198754; border:1px solid #b6dcc8; }
+.fase-homologacao { background:#fff4eb;  color:#f97316; border:1px solid #fdd5b3; }
+.fase-ct          { background:#fde8d8;  color:#9a3412; border:1px solid #fdba74; }
+.fase-encerrada   { background:#1f2937;  color:#fff; }
+/* Status de homologação/aprovação */
+.fase-pendente    { background:#fff3cd;  color:#664d03; }
+.fase-homologada  { background:#d1e7dd;  color:#0a3622; }
+.fase-aprovada    { background:#d1e7dd;  color:#0a3622; }
+.fase-rejeitada   { background:#f8d7da;  color:#58151c; }
+
+/* Situação de licitação */
+.situ-preparacao  { background:#fff3cd;  color:#664d03; }
+.situ-em-lic      { background:#cfe2ff;  color:#084298; }
+.situ-licitado    { background:#d1e7dd;  color:#0a3622; }
+.situ-nao-lic     { background:#e9ecef;  color:#6c757d; }
+
+/* ── Badges de ativo/inativo ─────────────────────────────────────── */
+.badge-ativo   { background:#d1e7dd; color:#0a3622; font-weight:600; font-size:.75rem; border-radius:20px; padding:3px 10px; white-space:nowrap; }
+.badge-inativo { background:#e9ecef; color:#6c757d; font-weight:600; font-size:.75rem; border-radius:20px; padding:3px 10px; white-space:nowrap; }
+
+/* ── Badges de perfil de usuário ─────────────────────────────────── */
+.badge-perfil-admin       { background:#212529; color:#fff;    font-weight:600; font-size:.72rem; border-radius:20px; padding:2px 9px; white-space:nowrap; }
+.badge-perfil-gestor      { background:#cfe2ff; color:#084298; font-weight:600; font-size:.72rem; border-radius:20px; padding:2px 9px; white-space:nowrap; }
+.badge-perfil-aprov-setor { background:#e9d8fd; color:#4c1d95; font-weight:600; font-size:.72rem; border-radius:20px; padding:2px 9px; white-space:nowrap; }
+.badge-perfil-respondente { background:#e9ecef; color:#495057; font-weight:600; font-size:.72rem; border-radius:20px; padding:2px 9px; white-space:nowrap; }
+.badge-perfil-aprov-ct    { background:#fff3cd; color:#664d03; font-weight:600; font-size:.72rem; border-radius:20px; padding:2px 9px; white-space:nowrap; }

@@ -1,0 +1,351 @@
+{% extends 'base.html' %}
+{% load core_tags %}
+{% block title %}Itens – {{ irp.titulo }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .tabela-itens { font-family: 'Open Sans', sans-serif; table-layout: fixed; width: 100%; border-collapse: separate; border-spacing: 0; }
+  .tabela-itens thead th {
+    background-color: #f8f9fa !important;
+    border-bottom: 2px solid #dee2e6 !important;
+    font-size: 0.6rem !important;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    color: #495057;
+    padding: .75rem .4rem;
+    vertical-align: middle !important;
+    text-align: center;
+  }
+  .tabela-itens tbody td {
+    padding: .45rem .4rem;
+    vertical-align: middle;
+    font-size: 0.675rem !important;
+    line-height: 1.2;
+    border-bottom: 1px solid #eee;
+  }
+  .tabela-itens tbody tr:hover { background-color: #fcfdfe; }
+
+  .col-codigo { font-family: 'Open Sans', sans-serif; }
+  .col-descricao { font-weight: 500; font-size: 0.675rem !important; }
+  .col-valor { font-family: 'Open Sans', sans-serif; }
+  
+  .item-inativo td { opacity: .55; }
+  .item-inativo .col-descricao { text-decoration: line-through; }
+
+  .badge-ativo, .badge-inativo {
+    font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 4px;
+  }
+  .badge-ativo { background: #d1e7dd; color: #0a3622; }
+  .badge-inativo { background: #f8d7da; color: #58151c; }
+
+  .acao-btn {
+    width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 4px; border: 1px solid #eee; background: #fff; color: #6c757d;
+    transition: all .2s; cursor: pointer; text-decoration: none; padding: 0;
+  }
+  .acao-btn:hover { background: #f8f9fa; color: #212529; border-color: #dee2e6; }
+  .acao-btn-edit:hover { background: #e7f1ff; color: #0d6efd; border-color: #cfe2ff; }
+  .acao-btn-on:hover   { background: #d1e7dd; color: #198754; border-color: #badbcc; }
+  .acao-btn-off:hover  { background: #fff3cd; color: #856404; border-color: #ffeeba; }
+  .acao-btn-del:hover  { background: #f8d7da; color: #dc3545; border-color: #f5c2c7; }
+  .acao-btn i { font-size: 0.8rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Form oculto para exclusão em lote -->
+<form id="form-lote" method="post" action="{% url 'gestao_item_apagar_lote' irp.pk %}" style="display:none">
+  {% csrf_token %}
+  <div id="lote-inputs"></div>
+</form>
+
+<!-- Breadcrumb mínimo -->
+<nav aria-label="breadcrumb" class="mb-2">
+  <ol class="breadcrumb small mb-0" style="font-family:'Open Sans',sans-serif">
+    <li class="breadcrumb-item"><a href="{% url 'gestao_irp_list' %}">IRPs</a></li>
+    <li class="breadcrumb-item active">{{ irp.titulo }}</li>
+  </ol>
+</nav>
+
+<!-- Cabeçalho -->
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h4 class="fw-bold mb-0 titulo-pagina">
+      <i class="bi bi-list-ul me-2 text-primary"></i>{{ irp.titulo }}
+    </h4>
+    {% if irp.descricao %}
+    <p class="text-muted small mb-0 mt-1" style="font-family:'Open Sans',sans-serif">
+      <i class="bi bi-tag me-1"></i>{{ irp.descricao }}
+    </p>
+    {% endif %}
+    <p class="text-muted small mb-0" style="font-family:'Open Sans',sans-serif">
+      Prazo: {{ irp.prazo|date:"d/m/Y" }} &nbsp;·&nbsp;
+      {% if irp.esta_aberta %}<span class="text-success fw-semibold">Aberta</span>
+      {% else %}<span class="text-secondary">Encerrada</span>{% endif %}
+    </p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap align-items-center">
+    {% if irp.fase_atual != 'encerrada' %}
+    <a href="{% url 'gestao_item_create' irp.pk %}" class="btn btn-primary btn-sm fw-semibold">
+      <i class="bi bi-plus-lg me-1"></i> Adicionar Item
+    </a>
+    <button type="button" id="btn-apagar-lote"
+            class="btn btn-danger btn-sm fw-semibold" disabled
+            onclick="submeterLote()">
+      <i class="bi bi-trash3 me-1"></i> Apagar Selecionados
+    </button>
+    <a href="{% url 'gestao_item_importar' irp.pk %}" class="btn btn-secondary btn-sm fw-semibold">
+      <i class="bi bi-upload me-1"></i> Importar
+    </a>
+    {% endif %}
+    <a href="{% url 'gestao_resultados' irp.pk %}" class="btn btn-success btn-sm fw-semibold">
+      <i class="bi bi-bar-chart-fill me-1"></i> Resultados
+    </a>
+    <a href="{% url 'gestao_exportar' irp.pk %}" class="btn btn-info btn-sm fw-semibold text-white">
+      <i class="bi bi-download me-1"></i> Exportar
+    </a>
+  </div>
+</div>
+
+<!-- Filtros -->
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+  <div class="input-group input-group-sm" style="max-width:360px">
+    <span class="input-group-text bg-white border-end-0">
+      <i class="bi bi-search text-muted"></i>
+    </span>
+    <input type="text" id="busca-item"
+           class="form-control border-start-0 ps-0"
+           placeholder="Filtrar por descrição ou unidade...">
+  </div>
+  <button type="button" id="btn-limpar-filtros"
+          class="btn btn-sm btn-outline-secondary d-none"
+          style="font-family:'Open Sans',sans-serif"
+          onclick="limparFiltros()">
+    <i class="bi bi-x-lg me-1"></i> Limpar
+  </button>
+</div>
+
+<!-- Tabela -->
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 tabela-itens" id="tabela-itens">
+      <thead class="table-light">
+        <tr>
+          <th style="width:42px" class="text-center">
+            <input type="checkbox" id="chk-todos" class="form-check-input"
+                   title="Selecionar todos" style="cursor:pointer">
+          </th>
+          <th class="sortable text-center" data-col="0" style="width:52px">N&ordm;</th>
+          <th class="sortable text-start" data-col="1">Descri&ccedil;&atilde;o do Material</th>
+          <th class="sortable text-center" data-col="2" style="width:70px">Unid.</th>
+          <th class="sortable text-center" data-col="3" style="width:140px">Valor de Refer&ecirc;ncia</th>
+          <th class="sortable text-center" data-col="4" style="width:95px">Situa&ccedil;&atilde;o</th>
+          <th style="width:90px" class="text-center">A&ccedil;&otilde;es</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-itens">
+        {% for item in itens %}
+        <tr class="item-row {% if not item.ativo %}item-inativo{% endif %}"
+            data-busca="{{ item.descricao|lower }} {{ item.codigo_catmat|lower }} {{ item.numero_dfd|lower }}"
+            data-situacao="{% if item.ativo %}ativo{% else %}inativo{% endif %}">
+
+          <td class="text-center">
+            <input type="checkbox" value="{{ item.pk }}"
+                   class="form-check-input chk-item" style="cursor:pointer">
+          </td>
+
+          <td class="text-center fw-semibold text-muted col-codigo"
+              data-sort="{{ item.numero|stringformat:'05d' }}">
+            {{ item.numero }}
+          </td>
+
+          <td class="text-start col-descricao" data-sort="{{ item.descricao|lower }}">
+            {{ item.descricao }}
+          </td>
+
+          <td class="text-center col-codigo" data-sort="{{ item.unidade|lower }}">
+            {{ item.unidade }}
+          </td>
+
+          <td class="text-center col-valor" data-sort="{{ item.preco_estimado }}">
+            {{ item.preco_estimado|brl }}
+          </td>
+
+          <td class="text-center" data-sort="{{ item.ativo|yesno:'0,1' }}">
+            {% if item.ativo %}
+              <span class="badge-ativo">Ativo</span>
+            {% else %}
+              <span class="badge-inativo">Inativo</span>
+            {% endif %}
+          </td>
+
+          <td class="text-center">
+            <div class="d-flex gap-1 justify-content-center">
+              {% if irp.fase_atual != 'encerrada' %}
+              <a href="{% url 'gestao_item_edit' item.pk %}"
+                 class="acao-btn acao-btn-edit" title="Editar item">
+                <i class="bi bi-pencil-square"></i>
+              </a>
+
+              <form id="form-toggle-{{ item.pk }}" method="post"
+                    action="{% url 'gestao_item_toggle' item.pk %}">
+                {% csrf_token %}
+              </form>
+              <button type="submit" form="form-toggle-{{ item.pk }}"
+                      class="acao-btn {% if item.ativo %}acao-btn-off{% else %}acao-btn-on{% endif %}"
+                      title="{% if item.ativo %}Desativar{% else %}Ativar{% endif %}"
+                      onclick="return confirm('{% if item.ativo %}Desativar{% else %}Ativar{% endif %} o item {{ item.numero }}?')">
+                <i class="bi {% if item.ativo %}bi-toggle-off{% else %}bi-toggle-on{% endif %}"></i>
+              </button>
+
+              <form id="form-del-{{ item.pk }}" method="post"
+                    action="{% url 'gestao_item_delete' item.pk %}">
+                {% csrf_token %}
+              </form>
+              <button type="submit" form="form-del-{{ item.pk }}"
+                      class="acao-btn acao-btn-del"
+                      title="Excluir item"
+                      onclick="return confirm('Excluir permanentemente o item {{ item.numero }}?\n\nEsta ação não pode ser desfeita.')">
+                <i class="bi bi-trash3-fill"></i>
+              </button>
+              {% else %}
+              <span class="text-muted" style="font-size:.75rem;opacity:.45" title="IRP encerrada">
+                <i class="bi bi-lock"></i>
+              </span>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr id="linha-vazia">
+          <td colspan="7" class="text-center text-muted py-5" style="font-family:'Open Sans',sans-serif">
+            <i class="bi bi-inbox fs-2 d-block mb-2 opacity-25"></i>
+            Nenhum item cadastrado ainda.
+            {% if irp.fase_atual != 'encerrada' %}
+            <br>
+            <a href="{% url 'gestao_item_create' irp.pk %}" class="btn btn-primary btn-sm mt-3">
+              <i class="bi bi-plus-lg me-1"></i> Adicionar Item
+            </a>
+            &nbsp;
+            <a href="{% url 'gestao_item_importar' irp.pk %}" class="btn btn-secondary btn-sm mt-3">
+              <i class="bi bi-upload me-1"></i> Importar Planilha
+            </a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card-footer bg-white border-top d-flex justify-content-between align-items-center py-2" style="font-size: 0.75rem; font-family:'Open Sans',sans-serif">
+    <span id="contador-rodape">
+      Total: <strong>{{ itens.count }}</strong> item(ns)
+    </span>
+    <span id="contador-selecionados" class="text-primary fw-semibold" style="display:none"></span>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const TOTAL_GERAL = {{ itens.count }};
+
+// Filtros
+const inputBusca = document.getElementById('busca-item');
+const btnLimpar  = document.getElementById('btn-limpar-filtros');
+
+function aplicarFiltros() {
+  const termo = inputBusca.value.toLowerCase().trim();
+  let visiveis = 0;
+
+  document.querySelectorAll('.item-row').forEach(tr => {
+    const passa = !termo || tr.dataset.busca.includes(termo);
+    tr.style.display = passa ? '' : 'none';
+    if (passa) visiveis++;
+  });
+
+  const rodape = document.getElementById('contador-rodape');
+  if (termo) {
+    rodape.innerHTML = `Exibindo <strong>${visiveis}</strong> de <strong>${TOTAL_GERAL}</strong> item(ns)`;
+    btnLimpar.classList.remove('d-none');
+  } else {
+    rodape.innerHTML = `Total: <strong>${TOTAL_GERAL}</strong> item(ns)`;
+    btnLimpar.classList.add('d-none');
+  }
+}
+
+function limparFiltros() {
+  inputBusca.value = '';
+  aplicarFiltros();
+}
+
+inputBusca.addEventListener('input', aplicarFiltros);
+
+// Seleção em lote
+const chkTodos  = document.getElementById('chk-todos');
+const btnApagar = document.getElementById('btn-apagar-lote');
+const cntSel    = document.getElementById('contador-selecionados');
+
+function atualizarLote() {
+  const sel   = document.querySelectorAll('.chk-item:checked');
+  const total = document.querySelectorAll('.chk-item').length;
+  btnApagar.disabled     = sel.length === 0;
+  cntSel.textContent     = sel.length > 0 ? sel.length + ' selecionado(s)' : '';
+  cntSel.style.display   = sel.length > 0 ? '' : 'none';
+  chkTodos.indeterminate = sel.length > 0 && sel.length < total;
+  chkTodos.checked       = total > 0 && sel.length === total;
+}
+
+chkTodos.addEventListener('change', function () {
+  document.querySelectorAll('.chk-item').forEach(c => {
+    if (c.closest('tr').style.display !== 'none') c.checked = this.checked;
+  });
+  atualizarLote();
+});
+
+document.querySelectorAll('.chk-item').forEach(c => c.addEventListener('change', atualizarLote));
+
+function submeterLote() {
+  const selecionados = document.querySelectorAll('.chk-item:checked');
+  if (!selecionados.length) return;
+  if (!confirm('Apagar PERMANENTEMENTE ' + selecionados.length +
+               ' item(ns) selecionado(s)?\n\nEsta ação não pode ser desfeita.')) return;
+  const container = document.getElementById('lote-inputs');
+  container.innerHTML = '';
+  selecionados.forEach(c => {
+    const inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = 'item_ids'; inp.value = c.value;
+    container.appendChild(inp);
+  });
+  document.getElementById('form-lote').submit();
+}
+
+// Ordenação de colunas
+let sortCol = -1, sortAsc = true;
+
+document.querySelectorAll('th.sortable').forEach(th => {
+  th.addEventListener('click', function () {
+    const col = parseInt(this.dataset.col);
+    sortAsc = sortCol === col ? !sortAsc : true;
+    sortCol = col;
+    document.querySelectorAll('th.sortable').forEach(h => h.classList.remove('asc', 'desc'));
+    this.classList.add(sortAsc ? 'asc' : 'desc');
+
+    const tbody = document.getElementById('tbody-itens');
+    const tdIdx = col + 1; // +1 pelo checkbox
+
+    Array.from(tbody.querySelectorAll('tr.item-row'))
+      .sort((a, b) => {
+        const va = (a.querySelectorAll('td')[tdIdx]?.dataset.sort ?? '').toLowerCase();
+        const vb = (b.querySelectorAll('td')[tdIdx]?.dataset.sort ?? '').toLowerCase();
+        return sortAsc ? va.localeCompare(vb, 'pt-BR') : vb.localeCompare(va, 'pt-BR');
+      })
+      .forEach(tr => tbody.appendChild(tr));
+  });
+});
+</script>
+{% endblock extra_scripts %}

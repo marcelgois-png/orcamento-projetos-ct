@@ -1,0 +1,372 @@
+{% extends 'base.html' %}
+{% block title %}Usuários – IRP CT/UFPB{% endblock %}
+
+{% block extra_head %}
+<style>
+  .table tbody td { font-size: .82rem; }
+  .col-nome  { font-weight: 400; }
+  .col-nome.inativo { color: #adb5bd; text-decoration: line-through; }
+  .col-login { font-size: .82rem; color: #6c757d; font-family: 'SFMono-Regular', Consolas, monospace; }
+  .col-setor { font-size: .82rem; color: #495057; }
+  .avatar-thumb {
+    width: 34px; height: 34px; border-radius: 50%;
+    object-fit: cover; border: 1.5px solid #dee2e6;
+  }
+  .avatar-placeholder {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: #e9ecef; display: inline-flex;
+    align-items: center; justify-content: center;
+    color: #adb5bd; font-size: 1.1rem; flex-shrink: 0;
+    border: 1.5px solid #dee2e6;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Form oculto para exclusão em lote -->
+<form id="form-lote" method="post" action="{% url 'gestao_usuario_apagar_lote' %}" style="display:none">
+  {% csrf_token %}
+  <div id="lote-inputs"></div>
+</form>
+
+<!-- Cabeçalho -->
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h4 class="fw-bold mb-0 titulo-pagina">
+    <i class="bi bi-people me-2 text-primary"></i>Usuários
+  </h4>
+  <div class="d-flex gap-2 flex-wrap align-items-center">
+    <a href="{% url 'gestao_usuario_create' %}" class="btn btn-primary btn-sm fw-semibold">
+      <i class="bi bi-person-plus me-1"></i> Novo Usuário
+    </a>
+    <button type="button" id="btn-apagar-lote"
+            class="btn btn-danger btn-sm fw-semibold" disabled
+            onclick="submeterLote()">
+      <i class="bi bi-trash3 me-1"></i> Apagar Selecionados
+    </button>
+  </div>
+</div>
+
+<!-- Filtros -->
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+  <div class="input-group input-group-sm" style="max-width:340px">
+    <span class="input-group-text bg-white border-end-0">
+      <i class="bi bi-search text-muted"></i>
+    </span>
+    <input type="text" id="busca-usuario"
+           class="form-control border-start-0 ps-0"
+           placeholder="Filtrar por nome ou login...">
+  </div>
+
+  <select id="filtro-situacao" class="ts-filtro" multiple placeholder="Todas as situações">
+    <option value="ativo">Ativo</option>
+    <option value="inativo">Inativo</option>
+  </select>
+
+  <select id="filtro-perfil" class="ts-filtro" multiple placeholder="Todos os perfis">
+    <option value="admin">Administrador</option>
+    <option value="gestor_irp">Assessor de Planejamento</option>
+    <option value="diretor_centro">Diretor de Centro</option>
+    <option value="aprovador_setor">Chefia Setorial</option>
+    <option value="respondente">Respondente</option>
+  </select>
+
+  <button type="button" id="btn-limpar-filtros"
+          class="btn btn-sm btn-outline-secondary d-none"
+          style="font-family:'Open Sans',sans-serif"
+          onclick="limparFiltros()">
+    <i class="bi bi-x-lg me-1"></i> Limpar
+  </button>
+</div>
+
+<!-- Tabela -->
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0" id="tabela-usuarios">
+      <thead class="table-light">
+        <tr>
+          <th style="width:42px" class="text-center">
+            <input type="checkbox" id="chk-todos" class="form-check-input"
+                   title="Selecionar todos" style="cursor:pointer">
+          </th>
+          <!-- Foto: td[1] – sem ordenação -->
+          <th style="width:46px"></th>
+          <!-- data-col = índice absoluto do td -->
+          <th class="sortable" data-col="2">
+            Nome <span class="sort-icon"></span>
+          </th>
+          <th class="sortable" data-col="3" style="width:110px">
+            Login <span class="sort-icon"></span>
+          </th>
+          <th class="sortable" data-col="4">
+            Setor <span class="sort-icon"></span>
+          </th>
+          <th class="sortable" data-col="5" style="width:200px">
+            Perfil <span class="sort-icon"></span>
+          </th>
+          <th class="sortable text-center" data-col="6" style="width:95px">
+            Situação <span class="sort-icon"></span>
+          </th>
+          <th style="width:90px" class="text-center">Ações</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-usuarios">
+        {% for u in usuarios %}
+        {% with perfil=u.perfil setor=u.perfil.setor %}
+        <tr class="usuario-row"
+            data-busca="{{ u.username|lower }} {% if u.perfil %}{{ u.perfil.nome_completo|lower }}{% endif %}"
+            data-situacao="{% if u.is_active %}ativo{% else %}inativo{% endif %}"
+            data-perfil="{% if u.perfil %}{{ u.perfil.perfil_tipo }}{% else %}respondente{% endif %}">
+
+          <!-- Checkbox -->
+          <td class="text-center">
+            <input type="checkbox" value="{{ u.pk }}"
+                   class="form-check-input chk-usuario" style="cursor:pointer">
+          </td>
+
+          <!-- Foto -->
+          <td class="text-center" style="padding:.4rem .5rem">
+            {% if perfil and perfil.foto %}
+              <img src="{{ perfil.foto.url }}" alt="" class="avatar-thumb">
+            {% else %}
+              <span class="avatar-placeholder">
+                <i class="bi bi-person-fill"></i>
+              </span>
+            {% endif %}
+          </td>
+
+          <!-- Nome -->
+          <td data-sort="{% if u.perfil %}{{ u.perfil.nome_completo|lower }}{% else %}{{ u.username|lower }}{% endif %}">
+            <span class="col-nome {% if not u.is_active %}inativo{% endif %}">
+              {% if u.perfil %}{{ u.perfil.nome_completo|default:u.username }}
+              {% else %}<span class="fst-italic text-muted">{{ u.username }}</span>{% endif %}
+            </span>
+          </td>
+
+          <!-- Login -->
+          <td class="col-login" data-sort="{{ u.username|lower }}">
+            {{ u.username }}
+          </td>
+
+          <!-- Setor -->
+          <td class="col-setor" data-sort="{% if setor %}{{ setor.nome|lower }}{% endif %}">
+            {% if setor %}
+              {{ setor.nome|truncatechars:40 }}
+              {% if setor.sigla %}
+                <span class="text-muted" style="font-size:.78rem">({{ setor.sigla }})</span>
+              {% endif %}
+            {% else %}<span class="opacity-25">—</span>{% endif %}
+          </td>
+
+          <!-- Perfil -->
+          <td data-sort="{% if u.perfil %}{{ u.perfil.perfil_tipo }}{% else %}respondente{% endif %}">
+            {% if u.perfil %}
+            {% with pt=u.perfil.perfil_tipo %}
+            <span class="d-flex align-items-center gap-1" style="font-size:.82rem">
+            {% if pt == 'admin' %}
+              <i class="bi bi-stars text-dark"></i>
+              <span>Administrador</span>
+            {% elif pt == 'gestor_irp' %}
+              <i class="bi bi-clipboard2-data text-primary"></i>
+              <span>Assessor de Planejamento</span>
+            {% elif pt == 'diretor_centro' %}
+              <i class="bi bi-person-badge-fill text-dark"></i>
+              <span>Diretor de Centro</span>
+            {% elif pt == 'aprovador_setor' %}
+              <i class="bi bi-check2-circle text-success"></i>
+              <span>Chefia Setorial</span>
+            {% else %}
+              <i class="bi bi-pencil-square text-secondary"></i>
+              <span>Respondente</span>
+            {% endif %}
+            </span>
+            {% endwith %}
+            {% endif %}
+          </td>
+
+          <!-- Situação -->
+          <td class="text-center" data-sort="{{ u.is_active|yesno:'0,1' }}">
+            {% if u.is_active %}
+              <span class="badge-ativo">Ativo</span>
+            {% else %}
+              <span class="badge-inativo">Inativo</span>
+            {% endif %}
+          </td>
+
+          <!-- Ações -->
+          <td class="text-center">
+            <div class="d-flex gap-1 justify-content-center">
+              <a href="{% url 'gestao_usuario_edit' u.pk %}"
+                 class="acao-btn acao-btn-edit" title="Editar usuário">
+                <i class="bi bi-pencil-square"></i>
+              </a>
+
+              <form id="form-toggle-{{ u.pk }}" method="post"
+                    action="{% url 'gestao_usuario_toggle_ativo' u.pk %}">
+                {% csrf_token %}
+              </form>
+              <button type="submit" form="form-toggle-{{ u.pk }}"
+                      class="acao-btn {% if u.is_active %}acao-btn-off{% else %}acao-btn-on{% endif %}"
+                      title="{% if u.is_active %}Desativar{% else %}Ativar{% endif %}"
+                      onclick="return confirm('{% if u.is_active %}Desativar{% else %}Ativar{% endif %} o usuário &quot;{{ u.username|escapejs }}&quot;?')">
+                <i class="bi {% if u.is_active %}bi-toggle-off{% else %}bi-toggle-on{% endif %}"></i>
+              </button>
+
+              <form id="form-apagar-{{ u.pk }}" method="post"
+                    action="{% url 'gestao_usuario_apagar' u.pk %}">
+                {% csrf_token %}
+              </form>
+              <button type="submit" form="form-apagar-{{ u.pk }}"
+                      class="acao-btn acao-btn-del"
+                      title="Apagar permanentemente"
+                      onclick="return confirm('Apagar PERMANENTEMENTE o usuário &quot;{{ u.username|escapejs }}&quot;?\n\nEsta ação não pode ser desfeita.')">
+                <i class="bi bi-trash3-fill"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% endwith %}
+        {% empty %}
+        <tr id="linha-vazia">
+          <td colspan="8" class="text-center text-muted py-5" style="font-family:'Open Sans',sans-serif">
+            <i class="bi bi-people fs-2 d-block mb-2 opacity-25"></i>
+            Nenhum usuário cadastrado.
+            <a href="{% url 'gestao_usuario_create' %}">Adicionar</a>.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card-footer bg-white border-top d-flex justify-content-between align-items-center py-2 rodape-tabela">
+    <span id="contador-rodape">
+      Total: <strong>{{ usuarios.count }}</strong> usuário(s)
+    </span>
+    <span id="contador-selecionados" class="text-primary fw-semibold" style="display:none"></span>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const TOTAL_GERAL = {{ usuarios.count }};
+
+// Filtros
+const inputBusca = document.getElementById('busca-usuario');
+const btnLimpar  = document.getElementById('btn-limpar-filtros');
+
+const tsSituacao = new TomSelect('#filtro-situacao', {
+  plugins: ['remove_button'],
+  placeholder: 'Todas as situações',
+  onInitialize() { this.wrapper.style.minWidth = '170px'; },
+  onChange: aplicarFiltros,
+});
+const tsPerfil = new TomSelect('#filtro-perfil', {
+  plugins: ['remove_button'],
+  placeholder: 'Todos os perfis',
+  onInitialize() { this.wrapper.style.minWidth = '190px'; },
+  onChange: aplicarFiltros,
+});
+
+function aplicarFiltros() {
+  const termo    = inputBusca.value.toLowerCase().trim();
+  const situacoes = tsSituacao.getValue();
+  const perfis    = tsPerfil.getValue();
+  let visiveis   = 0;
+
+  document.querySelectorAll('.usuario-row').forEach(tr => {
+    const passaBusca    = !termo         || tr.dataset.busca.includes(termo);
+    const passaSituacao = !situacoes.length || situacoes.includes(tr.dataset.situacao);
+    const passaPerfil   = !perfis.length    || perfis.includes(tr.dataset.perfil);
+    const mostrar = passaBusca && passaSituacao && passaPerfil;
+    tr.style.display = mostrar ? '' : 'none';
+    if (mostrar) visiveis++;
+  });
+
+  const rodape = document.getElementById('contador-rodape');
+  const filtroAtivo = termo || situacoes.length || perfis.length;
+  if (filtroAtivo) {
+    rodape.innerHTML = `Exibindo <strong>${visiveis}</strong> de <strong>${TOTAL_GERAL}</strong> usuário(s)`;
+    btnLimpar.classList.remove('d-none');
+  } else {
+    rodape.innerHTML = `Total: <strong>${TOTAL_GERAL}</strong> usuário(s)`;
+    btnLimpar.classList.add('d-none');
+  }
+}
+
+function limparFiltros() {
+  inputBusca.value = '';
+  tsSituacao.clear();
+  tsPerfil.clear();
+  aplicarFiltros();
+}
+
+inputBusca.addEventListener('input',      aplicarFiltros);
+selectSituacao.addEventListener('change', aplicarFiltros);
+selectPerfil.addEventListener('change',   aplicarFiltros);
+
+// Seleção em lote
+const chkTodos  = document.getElementById('chk-todos');
+const btnApagar = document.getElementById('btn-apagar-lote');
+const cntSel    = document.getElementById('contador-selecionados');
+
+function atualizarLote() {
+  const sel   = document.querySelectorAll('.chk-usuario:checked');
+  const total = document.querySelectorAll('.chk-usuario').length;
+  btnApagar.disabled     = sel.length === 0;
+  cntSel.textContent     = sel.length > 0 ? sel.length + ' selecionado(s)' : '';
+  cntSel.style.display   = sel.length > 0 ? '' : 'none';
+  chkTodos.indeterminate = sel.length > 0 && sel.length < total;
+  chkTodos.checked       = total > 0 && sel.length === total;
+}
+
+chkTodos.addEventListener('change', function () {
+  document.querySelectorAll('.chk-usuario').forEach(c => {
+    if (c.closest('tr').style.display !== 'none') c.checked = this.checked;
+  });
+  atualizarLote();
+});
+
+document.querySelectorAll('.chk-usuario').forEach(c => c.addEventListener('change', atualizarLote));
+
+function submeterLote() {
+  const selecionados = document.querySelectorAll('.chk-usuario:checked');
+  if (!selecionados.length) return;
+  if (!confirm('Apagar PERMANENTEMENTE ' + selecionados.length +
+               ' usuário(s) selecionado(s)?\n\nEsta ação não pode ser desfeita.')) return;
+  const container = document.getElementById('lote-inputs');
+  container.innerHTML = '';
+  selecionados.forEach(c => {
+    const inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = 'usuario_ids'; inp.value = c.value;
+    container.appendChild(inp);
+  });
+  document.getElementById('form-lote').submit();
+}
+
+// Ordenação — data-col = índice absoluto do td (sem offset)
+let sortCol = -1, sortAsc = true;
+
+document.querySelectorAll('th.sortable').forEach(th => {
+  th.addEventListener('click', function () {
+    const col = parseInt(this.dataset.col);
+    sortAsc = sortCol === col ? !sortAsc : true;
+    sortCol = col;
+    document.querySelectorAll('th.sortable').forEach(h => h.classList.remove('asc', 'desc'));
+    this.classList.add(sortAsc ? 'asc' : 'desc');
+
+    const tbody = document.getElementById('tbody-usuarios');
+
+    Array.from(tbody.querySelectorAll('tr.usuario-row'))
+      .sort((a, b) => {
+        const va = (a.querySelectorAll('td')[col]?.dataset.sort ?? '').toLowerCase();
+        const vb = (b.querySelectorAll('td')[col]?.dataset.sort ?? '').toLowerCase();
+        return sortAsc ? va.localeCompare(vb, 'pt-BR') : vb.localeCompare(va, 'pt-BR');
+      })
+      .forEach(tr => tbody.appendChild(tr));
+  });
+});
+</script>
+{% endblock extra_scripts %}

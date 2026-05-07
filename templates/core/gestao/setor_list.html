@@ -1,0 +1,490 @@
+{% extends 'base.html' %}
+{% block title %}Setores – IRP CT/UFPB{% endblock %}
+
+{% block extra_head %}
+<style>
+  .table tbody td { font-size: .82rem; }
+  .col-codigo { font-size: .75rem; }
+  .col-nome { font-weight: 400; }
+  .col-nome.inativo { color: #adb5bd; text-decoration: line-through; }
+  .bloco-titulo {
+    font-family: 'Open Sans', sans-serif;
+    font-size: .72rem; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: #6c757d;
+  }
+
+  /* ── scroll interno nas tabelas ── */
+  .tabela-scroll {
+    max-height: 420px;
+    overflow-y: auto;
+  }
+  .tabela-scroll thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: #f8f9fa;
+  }
+
+  /* ── badges de tipo ── */
+  .tipo-badge {
+    display: inline-block; font-size: .68rem; font-weight: 600;
+    padding: 2px 7px; border-radius: 4px; white-space: nowrap;
+    color: #fff; min-width: 80px; text-align: center;
+  }
+  .tipo-centro    { background: #495057; }
+  .tipo-direcao   { background: #212529; }
+  .tipo-adm       { background: #0891b2; }
+  .tipo-depto     { background: #1d4ed8; }
+  .tipo-coord-g   { background: #15803d; }
+  .tipo-pg        { background: #7c3aed; }
+  .tipo-lab       { background: #dc2626; }
+  .tipo-sec       { background: #6b7280; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Form oculto para exclusão em lote -->
+<form id="form-lote" method="post" action="{% url 'gestao_setor_apagar_lote' %}" style="display:none">
+  {% csrf_token %}
+  <div id="lote-inputs"></div>
+</form>
+
+<!-- Cabeçalho -->
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h4 class="fw-bold mb-0 titulo-pagina">
+    <i class="bi bi-diagram-3 me-2 text-primary"></i>Setores
+  </h4>
+  <div class="d-flex gap-2 flex-wrap align-items-center">
+    <a href="{% url 'gestao_setor_create' %}" class="btn btn-primary btn-sm fw-semibold">
+      <i class="bi bi-plus-lg me-1"></i> Novo Setor
+    </a>
+    <button type="button" id="btn-apagar-lote"
+            class="btn btn-danger btn-sm fw-semibold" disabled
+            onclick="submeterLote()">
+      <i class="bi bi-trash3 me-1"></i> Apagar Selecionados
+    </button>
+  </div>
+</div>
+
+<!-- Filtros globais -->
+<div class="d-flex flex-wrap gap-2 mb-4 align-items-center">
+  <div class="input-group input-group-sm" style="max-width:300px">
+    <span class="input-group-text bg-white border-end-0">
+      <i class="bi bi-search text-muted"></i>
+    </span>
+    <input type="text" id="busca-setor"
+           class="form-control border-start-0 ps-0"
+           placeholder="Filtrar por código ou nome...">
+  </div>
+
+  <select id="filtro-tipo" class="ts-filtro" multiple placeholder="Tipo: todos">
+    <option value="departamento">Departamento</option>
+    <option value="coordenacao_g">Coord. Graduação</option>
+    <option value="coordenacao_pg">Prog. Pós-Graduação</option>
+    <option value="administrativo">Administrativo</option>
+    <option value="laboratorio">Laboratório</option>
+    <option value="secretaria">Secretaria de Depto</option>
+  </select>
+
+  <button type="button" id="btn-limpar-busca"
+          class="btn btn-sm btn-outline-secondary d-none"
+          onclick="limparFiltros()">
+    <i class="bi bi-x-lg me-1"></i> Limpar
+  </button>
+  <span id="contador-selecionados" class="text-primary fw-semibold small" style="display:none;font-family:'Open Sans',sans-serif"></span>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     BLOCO 0 — Centro e Direção (não filtráveis, sempre visíveis)
+     ═══════════════════════════════════════════════════════════ -->
+<div class="d-flex align-items-center mb-2">
+  <span class="bloco-titulo"><i class="bi bi-building me-1"></i>Centro e Direção</span>
+</div>
+<div class="card border-0 shadow-sm mb-4">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th style="width:42px"></th>
+          <th style="width:130px">Código</th>
+          <th>Nome</th>
+          <th style="width:115px">Tipo</th>
+          <th style="width:200px">Subordinado a</th>
+          <th style="width:88px" class="text-center">Situação</th>
+          <th style="width:88px" class="text-center">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for setor in setores %}{% if setor.tipo == 'centro' or setor.tipo == 'direcao' %}
+        <tr>
+          <td></td>
+          <td class="col-codigo">{{ setor.codigo }}</td>
+          <td>
+            {% if setor.sigla %}<span class="fw-semibold text-primary me-1">{{ setor.sigla }}</span>{% endif %}
+            <span class="fw-semibold {% if not setor.ativo %}col-nome inativo{% endif %}">{{ setor.nome }}</span>
+          </td>
+          <td>
+            <span class="tipo-badge {% if setor.tipo == 'centro' %}tipo-centro{% else %}tipo-direcao{% endif %}">
+              {{ setor.get_tipo_display }}
+            </span>
+          </td>
+          <td class="text-muted">
+            {% if setor.pai %}{{ setor.pai.nome }}{% else %}<span class="text-muted fst-italic">—</span>{% endif %}
+          </td>
+          <td class="text-center">
+            {% if setor.ativo %}<span class="badge-ativo">Ativo</span>
+            {% else %}<span class="badge-inativo">Inativo</span>{% endif %}
+          </td>
+          <td class="text-center">
+            <a href="{% url 'gestao_setor_edit' setor.pk %}" class="acao-btn acao-btn-edit" title="Editar">
+              <i class="bi bi-pencil-square"></i>
+            </a>
+          </td>
+        </tr>
+        {% endif %}{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     BLOCO 1 — Nível 2: Departamentos, Coordenações e Administrativos
+     ═══════════════════════════════════════════════════════════ -->
+<div class="d-flex align-items-center mb-2 gap-3">
+  <span class="bloco-titulo"><i class="bi bi-diagram-3 me-1"></i>Setores Administrativos, Departamentos e Coordenações</span>
+  <span class="text-muted small" style="font-family:'Open Sans',sans-serif">
+    <i class="bi bi-arrow-return-right me-1"></i>Subordinados à Direção de Centro
+  </span>
+  <span id="rodape-raiz" class="text-muted small ms-auto" style="font-family:'Open Sans',sans-serif"></span>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+  <div class="table-responsive tabela-scroll">
+    <table class="table table-hover mb-0 tabela-setor" id="tabela-raiz">
+      <thead class="table-light">
+        <tr>
+          <th style="width:42px" class="text-center">
+            <input type="checkbox" id="chk-raiz-todos" class="form-check-input" style="cursor:pointer">
+          </th>
+          <th style="width:130px" class="sortable" data-col="0" data-tbody="tbody-raiz">
+            Código <span class="sort-icon"></span>
+          </th>
+          <th class="sortable" data-col="1" data-tbody="tbody-raiz">
+            Nome <span class="sort-icon"></span>
+          </th>
+          <th style="width:115px" class="sortable" data-col="2" data-tbody="tbody-raiz">
+            Tipo <span class="sort-icon"></span>
+          </th>
+          <th style="width:88px" class="text-center sortable" data-col="3" data-tbody="tbody-raiz">
+            Situação <span class="sort-icon"></span>
+          </th>
+          <th style="width:88px" class="text-center">Ações</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-raiz">
+        {% for setor in setores %}
+        {% if setor.tipo == 'departamento' or setor.tipo == 'coordenacao_g' or setor.tipo == 'coordenacao_pg' or setor.tipo == 'administrativo' %}
+        <tr class="raiz-row"
+            data-busca="{{ setor.codigo|lower }} {{ setor.nome|lower }}"
+            data-tipo="{{ setor.tipo }}">
+          <td class="text-center">
+            <input type="checkbox" value="{{ setor.pk }}" class="form-check-input chk-setor" style="cursor:pointer">
+          </td>
+          <td class="col-codigo" data-sort="{{ setor.codigo }}">{{ setor.codigo }}</td>
+          <td data-sort="{{ setor.nome|lower }}">
+            {% if setor.sigla %}<span class="fw-semibold text-primary me-1">{{ setor.sigla }}</span>{% endif %}
+            <span class="col-nome {% if not setor.ativo %}inativo{% endif %}">{{ setor.nome }}</span>
+          </td>
+          <td data-sort="{{ setor.tipo }}">
+            <span class="tipo-badge
+              {% if setor.tipo == 'departamento' %}tipo-depto
+              {% elif setor.tipo == 'coordenacao_g' %}tipo-coord-g
+              {% elif setor.tipo == 'coordenacao_pg' %}tipo-pg
+              {% else %}tipo-adm{% endif %}">
+              {{ setor.get_tipo_display }}
+            </span>
+          </td>
+          <td class="text-center" data-sort="{{ setor.ativo|yesno:'0,1' }}">
+            {% if setor.ativo %}<span class="badge-ativo">Ativo</span>
+            {% else %}<span class="badge-inativo">Inativo</span>{% endif %}
+          </td>
+          <td class="text-center">
+            <div class="d-flex gap-1 justify-content-center">
+              <a href="{% url 'gestao_setor_edit' setor.pk %}" class="acao-btn acao-btn-edit" title="Editar setor">
+                <i class="bi bi-pencil-square"></i>
+              </a>
+              <form id="form-des-{{ setor.pk }}" method="post" action="{% url 'gestao_setor_delete' setor.pk %}">{% csrf_token %}</form>
+              <button type="submit" form="form-des-{{ setor.pk }}" class="acao-btn acao-btn-off" title="Desativar setor"
+                      onclick="return confirm('Desativar o setor &quot;{{ setor.nome|escapejs }}&quot;?')">
+                <i class="bi bi-toggle-off"></i>
+              </button>
+              <form id="form-ap-{{ setor.pk }}" method="post" action="{% url 'gestao_setor_apagar' setor.pk %}">{% csrf_token %}</form>
+              <button type="submit" form="form-ap-{{ setor.pk }}" class="acao-btn acao-btn-del" title="Apagar permanentemente"
+                      onclick="return confirm('Apagar PERMANENTEMENTE o setor &quot;{{ setor.nome|escapejs }}&quot;?\n\nEsta acao nao pode ser desfeita.')">
+                <i class="bi bi-trash3-fill"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% endif %}{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer bg-white border-top py-2 rodape-tabela">
+    <span id="rodape-raiz-footer"></span>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     BLOCO 2 — Nível 3: Laboratórios e Secretarias
+     ═══════════════════════════════════════════════════════════ -->
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+  <span class="bloco-titulo"><i class="bi bi-flask me-1"></i>Laboratórios e Secretarias</span>
+  <span id="ct-sub" class="text-muted small" style="font-family:'Open Sans',sans-serif"></span>
+
+  <!-- Filtro por departamento pai (scoped ao nível 3) -->
+  <div class="ms-auto">
+    <select id="filtro-depto" class="ts-filtro" multiple placeholder="Departamento/PPG: todos">
+      {% for setor in setores %}
+        {% if setor.tipo == 'departamento' or setor.tipo == 'coordenacao_pg' %}
+          <option value="{{ setor.nome|lower }}">
+            {% if setor.sigla %}{{ setor.sigla }}{% else %}{{ setor.nome }}{% endif %}
+          </option>
+        {% endif %}
+      {% endfor %}
+    </select>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive tabela-scroll">
+    <table class="table table-hover mb-0 tabela-setor" id="tabela-sub">
+      <thead class="table-light">
+        <tr>
+          <th style="width:42px" class="text-center">
+            <input type="checkbox" id="chk-sub-todos" class="form-check-input" style="cursor:pointer">
+          </th>
+          <th style="width:130px" class="sortable" data-col="0" data-tbody="tbody-sub">
+            Código <span class="sort-icon"></span>
+          </th>
+          <th class="sortable" data-col="1" data-tbody="tbody-sub">
+            Nome <span class="sort-icon"></span>
+          </th>
+          <th style="width:115px" class="sortable" data-col="2" data-tbody="tbody-sub">
+            Tipo <span class="sort-icon"></span>
+          </th>
+          <th style="width:200px" class="sortable" data-col="3" data-tbody="tbody-sub">
+            Subordinado a <span class="sort-icon"></span>
+          </th>
+          <th style="width:88px" class="text-center sortable" data-col="4" data-tbody="tbody-sub">
+            Situação <span class="sort-icon"></span>
+          </th>
+          <th style="width:88px" class="text-center">Ações</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-sub">
+        {% for setor in setores %}
+        {% if setor.tipo == 'laboratorio' or setor.tipo == 'secretaria' %}
+        <tr class="sub-row"
+            data-busca="{{ setor.codigo|lower }} {{ setor.nome|lower }}"
+            data-tipo="{{ setor.tipo }}"
+            data-depto="{% if setor.pai %}{{ setor.pai.nome|lower }}{% endif %}">
+          <td class="text-center">
+            <input type="checkbox" value="{{ setor.pk }}" class="form-check-input chk-setor" style="cursor:pointer">
+          </td>
+          <td class="col-codigo" data-sort="{{ setor.codigo }}">{{ setor.codigo }}</td>
+          <td data-sort="{{ setor.nome|lower }}">
+            <span class="col-nome {% if not setor.ativo %}inativo{% endif %}">{{ setor.nome }}</span>
+          </td>
+          <td data-sort="{{ setor.tipo }}">
+            <span class="tipo-badge {% if setor.tipo == 'laboratorio' %}tipo-lab{% else %}tipo-sec{% endif %}">
+              {{ setor.get_tipo_display }}
+            </span>
+          </td>
+          <td class="text-muted" data-sort="{% if setor.pai %}{{ setor.pai.nome|lower }}{% endif %}">
+            {% if setor.pai %}
+              {% if setor.pai.sigla %}<span class="fw-semibold text-primary">{{ setor.pai.sigla }}</span>
+              {% else %}{{ setor.pai.nome }}{% endif %}
+            {% else %}<span class="text-danger">—</span>{% endif %}
+          </td>
+          <td class="text-center" data-sort="{{ setor.ativo|yesno:'0,1' }}">
+            {% if setor.ativo %}<span class="badge-ativo">Ativo</span>
+            {% else %}<span class="badge-inativo">Inativo</span>{% endif %}
+          </td>
+          <td class="text-center">
+            <div class="d-flex gap-1 justify-content-center">
+              <a href="{% url 'gestao_setor_edit' setor.pk %}" class="acao-btn acao-btn-edit" title="Editar setor">
+                <i class="bi bi-pencil-square"></i>
+              </a>
+              <form id="form-des-{{ setor.pk }}" method="post" action="{% url 'gestao_setor_delete' setor.pk %}">{% csrf_token %}</form>
+              <button type="submit" form="form-des-{{ setor.pk }}" class="acao-btn acao-btn-off" title="Desativar setor"
+                      onclick="return confirm('Desativar o setor &quot;{{ setor.nome|escapejs }}&quot;?')">
+                <i class="bi bi-toggle-off"></i>
+              </button>
+              <form id="form-ap-{{ setor.pk }}" method="post" action="{% url 'gestao_setor_apagar' setor.pk %}">{% csrf_token %}</form>
+              <button type="submit" form="form-ap-{{ setor.pk }}" class="acao-btn acao-btn-del" title="Apagar permanentemente"
+                      onclick="return confirm('Apagar PERMANENTEMENTE o setor &quot;{{ setor.nome|escapejs }}&quot;?\n\nEsta acao nao pode ser desfeita.')">
+                <i class="bi bi-trash3-fill"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% endif %}{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer bg-white border-top py-2 rodape-tabela">
+    <span id="rodape-sub"></span>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  'use strict';
+
+  const TOTAL_RAIZ = document.querySelectorAll('.raiz-row').length;
+  const TOTAL_SUB  = document.querySelectorAll('.sub-row').length;
+
+  function setRodape(id, visivel, total) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = visivel < total
+      ? `Exibindo <strong>${visivel}</strong> de <strong>${total}</strong>`
+      : `Total: <strong>${total}</strong>`;
+  }
+
+  const inputBusca = document.getElementById('busca-setor');
+  const btnLimpar  = document.getElementById('btn-limpar-busca');
+
+  const tsTipo = new TomSelect('#filtro-tipo', {
+    plugins: ['remove_button'],
+    placeholder: 'Tipo: todos',
+    onInitialize() { this.wrapper.style.minWidth = '190px'; },
+    onChange: aplicarFiltros,
+  });
+  const tsDepto = new TomSelect('#filtro-depto', {
+    plugins: ['remove_button'],
+    placeholder: 'Departamento/PPG: todos',
+    onInitialize() { this.wrapper.style.minWidth = '210px'; },
+    onChange: aplicarFiltros,
+  });
+
+  function aplicarFiltros() {
+    const termo  = inputBusca.value.toLowerCase().trim();
+    const tipos  = tsTipo.getValue();
+    const deptos = tsDepto.getValue();
+
+    let visRaiz = 0, visSub = 0;
+
+    document.querySelectorAll('.raiz-row').forEach(tr => {
+      const okBusca = !termo       || tr.dataset.busca.includes(termo);
+      const okTipo  = !tipos.length || tipos.includes(tr.dataset.tipo);
+      const ok = okBusca && okTipo;
+      tr.style.display = ok ? '' : 'none';
+      if (ok) visRaiz++;
+    });
+
+    document.querySelectorAll('.sub-row').forEach(tr => {
+      const okBusca = !termo        || tr.dataset.busca.includes(termo);
+      const okTipo  = !tipos.length  || tipos.includes(tr.dataset.tipo);
+      const okDepto = !deptos.length || deptos.includes(tr.dataset.depto);
+      const ok = okBusca && okTipo && okDepto;
+      tr.style.display = ok ? '' : 'none';
+      if (ok) visSub++;
+    });
+
+    setRodape('rodape-raiz-footer', visRaiz, TOTAL_RAIZ);
+    setRodape('rodape-sub',         visSub,  TOTAL_SUB);
+    btnLimpar.classList.toggle('d-none', !(termo || tipos.length || deptos.length));
+  }
+
+  function limparFiltros() {
+    inputBusca.value = '';
+    tsTipo.clear();
+    tsDepto.clear();
+    aplicarFiltros();
+  }
+  window.limparBusca = limparFiltros;
+  window.limparFiltros = limparFiltros;
+
+  inputBusca.addEventListener('input', aplicarFiltros);
+
+  aplicarFiltros();
+
+  // ── Ordenação ──────────────────────────────────────────────────────────────
+  const sortState = { 'tbody-raiz': { col: -1, asc: true }, 'tbody-sub': { col: -1, asc: true } };
+
+  document.querySelectorAll('th.sortable').forEach(th => {
+    th.addEventListener('click', function () {
+      const tbodyId = this.dataset.tbody;
+      const col = parseInt(this.dataset.col);
+      const st = sortState[tbodyId];
+      st.asc = st.col === col ? !st.asc : true;
+      st.col = col;
+      this.closest('table').querySelectorAll('th.sortable').forEach(h => h.classList.remove('asc', 'desc'));
+      this.classList.add(st.asc ? 'asc' : 'desc');
+      const tbody = document.getElementById(tbodyId);
+      const tdIdx = col + 1;
+      Array.from(tbody.querySelectorAll('tr'))
+        .sort((a, b) => {
+          const va = (a.querySelectorAll('td')[tdIdx]?.dataset.sort ?? '').toLowerCase();
+          const vb = (b.querySelectorAll('td')[tdIdx]?.dataset.sort ?? '').toLowerCase();
+          return st.asc ? va.localeCompare(vb, 'pt-BR') : vb.localeCompare(va, 'pt-BR');
+        })
+        .forEach(tr => tbody.appendChild(tr));
+    });
+  });
+
+  // ── Seleção em lote ────────────────────────────────────────────────────────
+  const btnApagar = document.getElementById('btn-apagar-lote');
+  const cntSel    = document.getElementById('contador-selecionados');
+
+  function atualizarLote() {
+    const sel = document.querySelectorAll('.chk-setor:checked');
+    btnApagar.disabled   = sel.length === 0;
+    cntSel.textContent   = sel.length > 0 ? sel.length + ' selecionado(s)' : '';
+    cntSel.style.display = sel.length > 0 ? '' : 'none';
+    ['raiz', 'sub'].forEach(bloco => {
+      const chkTodos = document.getElementById('chk-' + bloco + '-todos');
+      const todos    = document.querySelectorAll('#tbody-' + bloco + ' .chk-setor');
+      const marcados = document.querySelectorAll('#tbody-' + bloco + ' .chk-setor:checked');
+      chkTodos.checked       = marcados.length > 0 && marcados.length === todos.length;
+      chkTodos.indeterminate = marcados.length > 0 && marcados.length < todos.length;
+    });
+  }
+
+  ['raiz', 'sub'].forEach(bloco => {
+    document.getElementById('chk-' + bloco + '-todos').addEventListener('change', function () {
+      document.querySelectorAll('#tbody-' + bloco + ' .chk-setor').forEach(c => {
+        if (c.closest('tr').style.display !== 'none') c.checked = this.checked;
+      });
+      atualizarLote();
+    });
+  });
+
+  document.querySelectorAll('.chk-setor').forEach(c => c.addEventListener('change', atualizarLote));
+
+  function submeterLote() {
+    const selecionados = document.querySelectorAll('.chk-setor:checked');
+    if (!selecionados.length) return;
+    if (!confirm('Apagar PERMANENTEMENTE ' + selecionados.length +
+                 ' setor(es) selecionado(s)?\n\nEsta acao nao pode ser desfeita.')) return;
+    const container = document.getElementById('lote-inputs');
+    container.innerHTML = '';
+    selecionados.forEach(c => {
+      const inp = document.createElement('input');
+      inp.type = 'hidden'; inp.name = 'setor_ids'; inp.value = c.value;
+      container.appendChild(inp);
+    });
+    document.getElementById('form-lote').submit();
+  }
+  window.submeterLote = submeterLote;
+
+})();
+</script>
+{% endblock %}

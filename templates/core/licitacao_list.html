@@ -1,0 +1,266 @@
+{% extends 'base.html' %}
+{% block title %}Licitações – IRP CT/UFPB{% endblock %}
+
+{% block extra_head %}
+<style>
+  .fase-em-lic  { background:#cfe2ff; color:#084298; }
+  .fase-homolog { background:#d1e7dd; color:#0a3622; }
+
+  /* Inline edit cells */
+  .cell-edit { position: relative; cursor: pointer; min-width: 120px; }
+  .cell-edit .edit-input {
+    display: none; width: 100%;
+    font-family: 'Open Sans', sans-serif; font-size: .875rem;
+    border: 1px solid #86b7fe; border-radius: 4px; padding: 2px 6px;
+    outline: none; background: #fff;
+  }
+  .cell-edit:hover .display-val { text-decoration: underline dotted #adb5bd; }
+  .cell-edit.editing .display-val { display: none; }
+  .cell-edit.editing .edit-input  { display: block; }
+  .placeholder-edit { color: #adb5bd; font-style: italic; }
+
+  /* Estilos do botão de exportação igual à gestão */
+  .irp-acao-export {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    border: 1px solid #b6dcc8;
+    background: #e8f5ee;
+    color: #198754;
+    transition: all .15s;
+    text-decoration: none;
+  }
+  .irp-acao-export:hover { background: #d1ece0; border-color: #86c5a5; color: #135f3c; }
+  .irp-acao-export-disabled {
+    color: #adb5bd; border-color: #dee2e6; background: #f8f9fa; cursor: not-allowed; opacity: .55;
+  }
+  .licitacao-title-gavel {
+    width: 1.18em;
+    min-width: 1.18em;
+    height: 1.18em;
+    margin-right: .5rem;
+    color: var(--ct-primary, #465C78);
+    vertical-align: -.16em;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h4 class="fw-bold mb-0" style="font-family:'Open Sans',sans-serif">
+    <span class="icon-auction-gavel licitacao-title-gavel" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false">
+        <path d="M1 21h12v-2H1v2Zm4.25-12.93 2.83-2.83 14.14 14.15-2.83 2.82L5.25 8.07Zm7.07-7.07 5.66 5.66-2.83 2.83L9.49 3.83 12.32 1ZM3.83 9.49l5.66 5.65-2.83 2.83L1 12.31l2.83-2.82Z"/>
+      </svg>
+    </span>Licitações
+  </h4>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0" id="tabela-lic">
+      <thead class="table-light">
+        <tr>
+          <th style="width:22%" class="sortable" data-col="0">IRP <span class="sort-icon"></span></th>
+          <th style="width:155px" class="sortable" data-col="1">Pregão Eletrônico <span class="sort-icon"></span></th>
+          <th style="width:180px">Link de Acompanhamento</th>
+          <th style="width:160px;white-space:nowrap" class="text-center sortable" data-col="3">Status do Pregão <span class="sort-icon"></span></th>
+          <th style="width:145px" class="text-center sortable" data-col="4">Data Publicação <span class="sort-icon"></span></th>
+          <th style="width:145px" class="text-center sortable" data-col="5">Data Homologação <span class="sort-icon"></span></th>
+          <th style="width:90px" class="text-center">Itens</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-lic">
+        {% for row in rows %}
+        <tr class="lic-row">
+          <td data-sort="{{ row.irp.titulo|lower }}">
+            <span class="fw-semibold">{{ row.irp.titulo }}</span>
+            {% if row.irp.descricao %}
+            <br><span class="text-muted" style="font-size:.8rem">{{ row.irp.descricao|truncatechars:70 }}</span>
+            {% endif %}
+          </td>
+
+          <!-- Pregão Eletrônico — inline edit -->
+          <td class="cell-edit" data-pregao="{{ row.pregao.pk }}" data-campo="numero" data-sort="{{ row.pregao.numero|lower|default:'' }}">
+            <span class="display-val">
+              {% if row.pregao.numero %}{{ row.pregao.numero }}
+              {% else %}<span class="placeholder-edit">clique para editar</span>{% endif %}
+            </span>
+            <input class="edit-input" type="text" value="{{ row.pregao.numero }}"
+                   placeholder="ex: PE 012/2026">
+          </td>
+
+          <!-- Link — inline edit -->
+          <td class="cell-edit" data-pregao="{{ row.pregao.pk }}" data-campo="link">
+            <span class="display-val">
+              {% if row.pregao.link_acompanhamento %}
+              <a href="{{ row.pregao.link_acompanhamento }}" target="_blank"
+                 onclick="event.stopPropagation()" class="text-decoration-none small">
+                <i class="bi bi-box-arrow-up-right me-1"></i>Abrir link
+              </a>
+              {% else %}<span class="placeholder-edit">clique para editar</span>{% endif %}
+            </span>
+            <input class="edit-input" type="url" value="{{ row.pregao.link_acompanhamento }}"
+                   placeholder="https://...">
+          </td>
+
+          <!-- Status — badge automático -->
+          <td class="text-center" data-sort="{{ row.pregao.status }}">
+            {% if row.pregao.status == 'homologado' %}
+              <span class="fase-badge situ-licitado"><i class="bi bi-check-circle-fill"></i>Homologado</span>
+            {% elif row.pregao.status == 'em_licitacao' %}
+              <span class="fase-badge situ-em-lic"><i class="bi bi-hourglass-split"></i>Em licitação</span>
+            {% else %}
+              <span class="fase-badge situ-preparacao"><i class="bi bi-clock"></i>Em preparação</span>
+            {% endif %}
+          </td>
+
+          <!-- Data Publicação — base para validade do Registro de Preço -->
+          <td class="text-center {% if row.pregao.status == 'homologado' %}cell-edit{% endif %}"
+              data-pregao="{{ row.pregao.pk }}" data-campo="data_publicacao"
+              data-sort="{{ row.pregao.data_publicacao|date:'Y-m-d'|default:'' }}">
+            <span class="display-val">
+              {% if row.pregao.data_publicacao %}{{ row.pregao.data_publicacao|date:"d/m/Y" }}
+              {% elif row.pregao.status == 'homologado' %}<span class="placeholder-edit">definir data</span>
+              {% else %}<span class="text-muted small">—</span>{% endif %}
+            </span>
+            {% if row.pregao.status == 'homologado' %}
+            <input class="edit-input" type="date" value="{{ row.pregao.data_publicacao|date:'Y-m-d' }}">
+            {% endif %}
+          </td>
+
+          <!-- Data Homologação — inline edit (somente se homologado) -->
+          <td class="text-center {% if row.pregao.status == 'homologado' %}cell-edit{% endif %}" 
+              data-pregao="{{ row.pregao.pk }}" data-campo="data_homologacao" 
+              data-sort="{{ row.pregao.data_homologacao|date:'Y-m-d'|default:'' }}">
+            <span class="display-val">
+              {% if row.pregao.data_homologacao %}{{ row.pregao.data_homologacao|date:"d/m/Y" }}
+              {% elif row.pregao.status == 'homologado' %}<span class="placeholder-edit">definir data</span>
+              {% else %}<span class="text-muted small">—</span>{% endif %}
+            </span>
+            {% if row.pregao.status == 'homologado' %}
+            <input class="edit-input" type="date" value="{{ row.pregao.data_homologacao|date:'Y-m-d' }}">
+            {% endif %}
+          </td>
+
+          <!-- Ação: ver itens e exportar -->
+          <td class="text-center">
+            <div class="d-flex align-items-center justify-content-center gap-2">
+              <a href="{% url 'licitacao_detalhe' row.irp.pk %}"
+                 class="acao-btn acao-btn-ver" title="Ver itens">
+                <i class="bi bi-list-ul"></i>
+              </a>
+              {% if row.pregao.status == 'homologado' %}
+              <a href="{% url 'licitacao_exportar_itens' row.pregao.pk %}"
+                 class="irp-acao-export" title="Exportar Planilha (Excel)">
+                <i class="bi bi-file-earmark-spreadsheet"></i>
+              </a>
+              {% else %}
+              <span class="irp-acao-export irp-acao-export-disabled" title="Disponível após homologação">
+                <i class="bi bi-file-earmark-spreadsheet"></i>
+              </span>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="text-center text-muted py-5" style="font-family:'Open Sans',sans-serif">
+            <i class="bi bi-inbox fs-2 d-block mb-2 opacity-25"></i>
+            Nenhuma IRP aprovada pelo CT ainda.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer bg-white border-top d-flex justify-content-between align-items-center py-2 rodape-tabela">
+    <span>Total: <strong>{{ rows|length }}</strong> IRP(s) em licitação</span>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+/* Ordenação */
+(function() {
+  let sortCol = -1, sortAsc = true;
+  document.querySelectorAll('#tabela-lic th.sortable').forEach(function(th) {
+    th.addEventListener('click', function() {
+      const col = parseInt(this.dataset.col);
+      sortAsc = sortCol === col ? !sortAsc : true;
+      sortCol = col;
+      document.querySelectorAll('#tabela-lic th.sortable').forEach(function(h) { h.classList.remove('asc', 'desc'); });
+      this.classList.add(sortAsc ? 'asc' : 'desc');
+      const tbody = document.getElementById('tbody-lic');
+      Array.from(tbody.querySelectorAll('tr.lic-row'))
+        .sort(function(a, b) {
+          const va = (a.querySelectorAll('td')[col]?.dataset.sort ?? '').toLowerCase();
+          const vb = (b.querySelectorAll('td')[col]?.dataset.sort ?? '').toLowerCase();
+          return sortAsc ? va.localeCompare(vb, 'pt-BR') : vb.localeCompare(va, 'pt-BR');
+        })
+        .forEach(function(tr) { tbody.appendChild(tr); });
+    });
+  });
+})();
+
+const CSRF = document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+
+function salvarPregao(pregaoPk, campo, valor) {
+  fetch(`/licitacao/pregao/${pregaoPk}/salvar/`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF},
+    body: new URLSearchParams({campo, valor})
+  });
+}
+
+/* Inline edit: texto/url */
+document.querySelectorAll('.cell-edit').forEach(function(cell) {
+  const input = cell.querySelector('.edit-input');
+  const display = cell.querySelector('.display-val');
+  const pregaoPk = cell.dataset.pregao;
+  const campo = cell.dataset.campo;
+
+  cell.addEventListener('click', function(e) {
+    if (cell.classList.contains('editing')) return;
+    cell.classList.add('editing');
+    input.focus();
+    input.select();
+  });
+
+  function confirmar() {
+    cell.classList.remove('editing');
+    const valor = input.value.trim();
+    salvarPregao(pregaoPk, campo, valor);
+    // Atualiza display
+    if (campo === 'link') {
+      if (valor) {
+        display.innerHTML = `<a href="${valor}" target="_blank" onclick="event.stopPropagation()" class="text-decoration-none small"><i class="bi bi-box-arrow-up-right me-1"></i>Abrir link</a>`;
+      } else {
+        display.innerHTML = '<span class="placeholder-edit">clique para editar</span>';
+      }
+    } else if (campo === 'data_homologacao' || campo === 'data_publicacao') {
+      if (valor) {
+        // Converte YYYY-MM-DD para DD/MM/YYYY
+        const parts = valor.split('-');
+        display.innerHTML = `${parts[2]}/${parts[1]}/${parts[0]}`;
+      } else {
+        display.innerHTML = '<span class="placeholder-edit">definir data</span>';
+      }
+    } else {
+      display.innerHTML = valor || '<span class="placeholder-edit">clique para editar</span>';
+    }
+  }
+
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); confirmar(); }
+    if (e.key === 'Escape') { cell.classList.remove('editing'); input.value = input.dataset.orig || input.value; }
+  });
+  input.addEventListener('blur', confirmar);
+  // Salvar valor original para Escape
+  cell.addEventListener('mouseenter', function() { input.dataset.orig = input.value; });
+});
+
+</script>
+{% endblock %}

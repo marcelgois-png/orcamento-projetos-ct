@@ -1,0 +1,140 @@
+{% extends 'base_orcamento.html' %}
+{% load humanize l10n %}
+
+{% block title %}Painel — Execução Orçamentária{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0 fw-bold">Painel de Execução Orçamentária</h4>
+    <small class="text-muted">Visão consolidada dos recursos do CT/UFPB</small>
+  </div>
+  <a href="{% url 'orcamento_dashboard' %}" target="_blank" class="btn btn-sm btn-outline-success">
+    <i class="bi bi-graph-up-arrow me-1"></i>Dashboard Público
+  </a>
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-xl-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Total Orçado</div>
+        <div class="fs-5 fw-bold text-dark">R$ {{ total_orcado|floatformat:2|intcomma }}</div>
+        <div class="text-muted" style="font-size:.72rem">todos os recursos ativos</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Total Comprometido</div>
+        <div class="fs-5 fw-bold text-danger">R$ {{ total_comprometido|floatformat:2|intcomma }}</div>
+        <div class="text-muted" style="font-size:.72rem">soma das despesas registradas</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Saldo Disponível</div>
+        <div class="fs-5 fw-bold {% if saldo_disponivel >= 0 %}text-success{% else %}text-danger{% endif %}">
+          R$ {{ saldo_disponivel|floatformat:2|intcomma }}
+        </div>
+        <div class="text-muted" style="font-size:.72rem">orçado − comprometido</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Execução</div>
+        <div class="fs-5 fw-bold text-primary">{{ pct_execucao|floatformat:1 }}%</div>
+        <div class="progress mt-2" style="height:6px">
+          {% if pct_execucao > 0 %}
+          <div class="progress-bar bg-primary" style="width:{{ pct_execucao|unlocalize }}%"></div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Ações rápidas + Tabelas recentes -->
+<div class="row g-3">
+  <!-- Ações rápidas -->
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-0 pb-0 pt-3 px-3">
+        <h6 class="mb-0 fw-semibold">Ações Rápidas</h6>
+      </div>
+      <div class="card-body px-3 pb-3">
+        <div class="d-grid gap-2">
+          <a href="{% url 'despesa_create' %}" class="btn btn-sm btn-outline-danger">
+            <i class="bi bi-plus-circle me-1"></i>Nova Despesa
+          </a>
+          <a href="{% url 'recurso_create' %}" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-wallet2 me-1"></i>Novo Recurso
+          </a>
+          <a href="{% url 'transferencia_create' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left-right me-1"></i>Nova Transferência
+          </a>
+          <a href="{% url 'despesa_list' %}" class="btn btn-sm btn-light">
+            <i class="bi bi-list-ul me-1"></i>Ver todas as despesas
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Últimas despesas -->
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-0 pt-3 px-3 pb-0 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-semibold">Últimas Despesas Registradas</h6>
+        <a href="{% url 'despesa_list' %}" class="btn btn-sm btn-light">Ver todas</a>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0 small">
+            <thead class="table-light">
+              <tr>
+                <th class="px-3">Data</th>
+                <th>Discriminação</th>
+                <th>Setor</th>
+                <th class="text-end px-3">Comprometido</th>
+                <th>Situação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for d in ultimas_despesas %}
+              <tr>
+                <td class="px-3 text-nowrap">{{ d.data_despesa|date:"d/m/Y" }}</td>
+                <td>
+                  <a href="{% url 'despesa_edit' d.pk %}" class="text-decoration-none text-dark">
+                    {{ d.discriminacao|truncatechars:45 }}
+                  </a>
+                </td>
+                <td>{{ d.setor.sigla|default:"-" }}</td>
+                <td class="text-end px-3 text-nowrap">R$ {{ d.valor_comprometido|floatformat:2|intcomma }}</td>
+                <td>
+                  <span class="badge rounded-pill
+                    {% if d.situacao == 'paga' %}bg-success
+                    {% elif d.situacao == 'liquidada' %}bg-primary
+                    {% elif d.situacao == 'empenhada' %}bg-warning text-dark
+                    {% else %}bg-secondary{% endif %}">
+                    {{ d.get_situacao_display }}
+                  </span>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="5" class="text-center text-muted py-3">Nenhuma despesa registrada.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

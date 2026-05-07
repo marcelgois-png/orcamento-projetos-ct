@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block title %}Gestão – IRP CT/UFPB{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-4"><i class="bi bi-gear-fill me-2"></i>Painel de Gestão</h4>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center h-100">
+      <div class="card-body">
+        <div class="fs-1 fw-bold text-primary">{{ total_irps }}</div>
+        <div class="small text-muted">IRPs cadastradas</div>
+        <a href="{% url 'gestao_irp_list' %}" class="btn btn-sm btn-outline-primary mt-2">Gerenciar</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center h-100">
+      <div class="card-body">
+        <div class="fs-1 fw-bold text-success">{{ irps_abertas }}</div>
+        <div class="small text-muted">IRPs abertas</div>
+        <a href="{% url 'gestao_irp_create' %}" class="btn btn-sm btn-outline-success mt-2">Nova IRP</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center h-100">
+      <div class="card-body">
+        <div class="fs-1 fw-bold text-secondary">{{ total_usuarios }}</div>
+        <div class="small text-muted">Usuários</div>
+        <a href="{% url 'gestao_usuario_list' %}" class="btn btn-sm btn-outline-secondary mt-2">Gerenciar</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center h-100">
+      <div class="card-body">
+        <div class="fs-1 fw-bold text-info">{{ total_setores }}</div>
+        <div class="small text-muted">Setores ativos</div>
+        <a href="{% url 'gestao_setor_list' %}" class="btn btn-sm btn-outline-info mt-2">Gerenciar</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center py-4">
+        <i class="bi bi-file-earmark-plus-fill fs-1 text-primary mb-3"></i>
+        <h6 class="fw-bold">Nova IRP</h6>
+        <p class="text-muted small">Crie um novo questionário de intenções e adicione os itens a serem licitados.</p>
+        <a href="{% url 'gestao_irp_create' %}" class="btn btn-primary">Criar IRP</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center py-4">
+        <i class="bi bi-diagram-3-fill fs-1 text-info mb-3"></i>
+        <h6 class="fw-bold">Setores</h6>
+        <p class="text-muted small">Cadastre e organize os setores e subsetores do CT em uma hierarquia.</p>
+        <a href="{% url 'gestao_setor_list' %}" class="btn btn-info text-white">Gerenciar Setores</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center py-4">
+        <i class="bi bi-people-fill fs-1 text-secondary mb-3"></i>
+        <h6 class="fw-bold">Usuários</h6>
+        <p class="text-muted small">Gerencie os usuários que têm acesso ao sistema e seus setores de lotação.</p>
+        <a href="{% url 'gestao_usuario_list' %}" class="btn btn-secondary">Gerenciar Usuários</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

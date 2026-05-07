@@ -1,0 +1,306 @@
+{% extends 'base.html' %}
+{% load core_tags l10n %}
+
+{% block title %}Resultados – {{ irp.titulo }}{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+  .tabela-res { font-family: 'Open Sans', sans-serif; table-layout: fixed; width: 100%; border-collapse: separate; border-spacing: 0; }
+  .tabela-res thead th {
+    background-color: #f8f9fa !important;
+    border-bottom: 2px solid #dee2e6 !important;
+    font-size: 0.6rem !important;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    color: #495057;
+    padding: .65rem .4rem;
+    vertical-align: middle !important;
+    text-align: center;
+  }
+  .tabela-res tbody td {
+    padding: .4rem .4rem;
+    vertical-align: middle;
+    font-size: 0.675rem !important;
+    line-height: 1.2;
+    border-bottom: 1px solid #eee;
+  }
+  .tabela-res tbody tr:hover { background-color: #fcfdfe; }
+
+  .desc-truncate {
+    display: block;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: help;
+  }
+
+  .resp-nome { color: #212529; font-weight: 700; }
+  .resp-setor { color: #6c757d; font-weight: 500; }
+</style>
+{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-2">
+  <ol class="breadcrumb small">
+    <li class="breadcrumb-item"><a href="{% url 'gestao_irp_list' %}">IRPs</a></li>
+    <li class="breadcrumb-item active">Resultados</li>
+  </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h4 class="fw-bold mb-0">{{ irp.titulo }}</h4>
+    <div class="text-muted small">
+      Prazo: {{ irp.prazo|date:"d/m/Y" }} &nbsp;·&nbsp;
+      {% if irp.esta_aberta %}
+        <span class="text-success fw-semibold">Aberta</span>
+      {% else %}
+        <span class="text-secondary">Encerrada</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if irp.fase_atual == 'encerrada' %}
+    <a href="{% url 'gestao_exportar' irp.pk %}" class="btn btn-success btn-sm">
+      <i class="bi bi-file-earmark-excel me-1"></i> Exportar Excel
+    </a>
+    {% endif %}
+    <a href="{% url 'gestao_item_list' irp.pk %}" class="btn btn-primary btn-sm">
+      <i class="bi bi-list-ul me-1"></i> Itens
+    </a>
+  </div>
+</div>
+
+<!-- Resumo -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-primary">{{ total_respondentes }}</div>
+        <div class="small text-muted">Respondentes</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-secondary">{{ dados.total_itens_irp }}</div>
+        <div class="small text-muted">Itens na IRP</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-success">{{ total_itens_intencionados }}</div>
+        <div class="small text-muted">Intenções registradas</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center">
+      <div class="card-body py-3">
+        <div class="fs-4 fw-bold text-warning">{{ total_valor|brl }}</div>
+        <div class="small text-muted">Volume financeiro</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Gráfico por setor -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-white fw-semibold border-0 d-flex align-items-center gap-3">
+    <span><i class="bi bi-bar-chart me-1"></i> Volume financeiro por setor</span>
+    <span class="d-flex gap-3 ms-2" style="font-size:.78rem;font-weight:400">
+      <span><span style="display:inline-block;width:10px;height:10px;background:#283E4C;border-radius:2px;margin-right:4px"></span>Setores Administrativos</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#A5B1BB;border-radius:2px;margin-right:4px"></span>Departamentos e Laboratórios</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#C6543C;border-radius:2px;margin-right:4px"></span>Coordenações</span>
+    </span>
+  </div>
+  <div class="card-body p-0" id="grafico-setores-scroll" style="overflow-y:auto;max-height:320px;">
+    <div id="grafico-setores-wrap">
+      <canvas id="grafico-setores"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Respostas detalhadas -->
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white fw-semibold border-0 d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-table me-1"></i> Detalhamento por respondente</span>
+    <span class="badge bg-secondary">{{ respostas_dados|length }} resposta(s)</span>
+  </div>
+  <div class="accordion accordion-flush" id="accordionRespostas">
+    {% for rd in respostas_dados %}
+    {% with resp=rd.resposta %}
+    <div class="accordion-item border-0 border-bottom">
+      <h2 class="accordion-header">
+        <button class="accordion-button collapsed py-2" type="button"
+                data-bs-toggle="collapse" data-bs-target="#resp-{{ resp.pk }}">
+          <div class="d-flex w-100 align-items-center pe-3 gap-2">
+            <strong class="resp-nome text-uppercase" style="white-space:nowrap;font-size:.875rem">
+              {% if resp.usuario.perfil.nome_completo %}{{ resp.usuario.perfil.nome_completo }}{% else %}{{ resp.usuario.username }}{% endif %}
+            </strong>
+            <span class="resp-setor text-muted" style="font-size:.875rem;white-space:nowrap">
+              {{ resp.setor.nome|default:resp.usuario.perfil.setor.nome|default:"Setor não informado"|truncatechars:50 }}
+            </span>
+            <div class="ms-auto text-end small flex-shrink-0">
+              <span class="badge bg-success-subtle text-success border border-success-subtle me-2">
+                {{ rd.total_itens }} item(ns)
+              </span>
+              <span class="fw-semibold text-primary">{{ rd.total_valor|brl }}</span>
+            </div>
+          </div>
+        </button>
+      </h2>
+      <div id="resp-{{ resp.pk }}" class="accordion-collapse collapse">
+        <div class="accordion-body p-0">
+          <div class="px-3 py-2 bg-light border-bottom small text-muted">
+            <span><i class="bi bi-clock me-1"></i>Atualizado em: {{ resp.atualizada_em|date:"d/m/Y H:i" }}</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover mb-0 tabela-res">
+              <thead>
+                <tr>
+                  <th style="width:50px">Nº</th>
+                  <th class="text-start">Descrição</th>
+                  <th style="width:60px">Unid.</th>
+                  <th style="width:70px" class="text-end">Qtd.</th>
+                  <th style="width:100px" class="text-end">Preço Unit.</th>
+                  <th style="width:110px" class="text-end">Total</th>
+                  <th class="text-start">Observação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for ri in resp.itens_resposta.all %}
+                {% if ri.quantidade and ri.quantidade > 0 %}
+                <tr>
+                  <td class="text-center text-muted fw-semibold">{{ ri.item.numero }}</td>
+                  <td class="text-start">
+                    <span class="desc-truncate" title="{{ ri.item.descricao }}">
+                      {{ ri.item.descricao }}
+                    </span>
+                  </td>
+                  <td class="text-center">{{ ri.item.unidade }}</td>
+                  <td class="text-end fw-semibold">{{ ri.quantidade|floatformat:2 }}</td>
+                  <td class="text-end">{{ ri.item.preco_estimado|brl }}</td>
+                  <td class="text-end text-primary fw-bold">{{ ri.valor_total|brl }}</td>
+                  <td class="text-start text-muted">
+                    {% if ri.observacao %}
+                    <span class="desc-truncate" title="{{ ri.observacao }}">
+                      {{ ri.observacao }}
+                    </span>
+                    {% else %}—{% endif %}
+                  </td>
+                </tr>
+                {% endif %}
+                {% empty %}
+                <tr><td colspan="7" class="text-center text-muted py-2">Sem intenções registradas.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endwith %}
+    {% empty %}
+    <div class="p-4 text-center text-muted">
+      <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+      Nenhuma resposta registrada para esta IRP.
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Alinha nomes de setor: todos começam na mesma posição horizontal
+(function() {
+  const nomes = document.querySelectorAll('.resp-nome');
+  let maxW = 0;
+  nomes.forEach(el => { maxW = Math.max(maxW, el.offsetWidth); });
+  nomes.forEach(el => { el.style.minWidth = maxW + 'px'; });
+})();
+
+if (typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
+
+const chartRawLabels = [{% for r in por_nivel_chart %}"{{ r.nome|escapejs }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+const chartValues    = [{% for r in por_nivel_chart %}{{ r.valor|unlocalize|default:0 }}{% if not forloop.last %},{% endif %}{% endfor %}];
+const chartColors    = [{% for r in por_nivel_chart %}"{{ r.cor }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+const chartNiveis    = [{% for r in por_nivel_chart %}"{{ r.nivel|escapejs }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+
+const wrap = document.getElementById('grafico-setores-wrap');
+
+if (chartRawLabels.length === 0) {
+  wrap.style.height = '100px';
+  wrap.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100 text-muted small">'
+    + '<i class="bi bi-inbox me-2 fs-5 opacity-50"></i>Nenhuma intenção registrada para esta IRP.</div>';
+} else {
+  // Quebra nome em múltiplas linhas (máx 18 chars por linha)
+  function splitYLabel(str) {
+    const words = str.split(' ');
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+      if (cur && (cur + ' ' + w).length > 18) { lines.push(cur); cur = w; }
+      else { cur = cur ? cur + ' ' + w : w; }
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  }
+  const chartLabels = chartRawLabels.map(splitYLabel);
+
+  // Altura: 40px por barra, mínimo 160px
+  const BAR_H = 40, HEADER_H = 60, MIN_H = 160;
+  wrap.style.height = Math.max(chartRawLabels.length * BAR_H + HEADER_H, MIN_H) + 'px';
+
+  const fmtBRL = v => 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+  const datalabelsPlugin = typeof ChartDataLabels !== 'undefined' ? {
+    anchor: 'end', align: 'end',
+    formatter: v => v > 0 ? fmtBRL(v) : '',
+    font: { size: 10, weight: '600' },
+    color: '#495057', clip: false,
+  } : false;
+
+  new Chart(document.getElementById('grafico-setores'), {
+    type: 'bar',
+    data: {
+      labels: chartLabels,
+      datasets: [{
+        label: 'R$ Intencionado',
+        data: chartValues,
+        backgroundColor: chartColors,
+        borderRadius: 0,
+        barThickness: 28,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: ctx => chartRawLabels[ctx[0].dataIndex],
+            beforeTitle: ctx => chartNiveis[ctx[0].dataIndex],
+            label: ctx => ' ' + fmtBRL(ctx.raw),
+          }
+        },
+        datalabels: datalabelsPlugin,
+      },
+      layout: { padding: { top: 10, bottom: 10, left: 10, right: 100 } },
+      scales: {
+        x: { ticks: { callback: v => 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:0}) } },
+        y: { ticks: { font: { size: 11 }, autoSkip: false } }
+      }
+    }
+  });
+}
+</script>
+{% endblock %}

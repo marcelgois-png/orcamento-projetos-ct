@@ -1,0 +1,155 @@
+{% extends 'base_orcamento.html' %}
+{% load humanize %}
+
+{% block title %}Transferência #{{ transferencia.pk }} — Execução Orçamentária{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+  <a href="{% url 'transferencia_list' %}" class="btn btn-sm btn-light">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <div>
+    <h5 class="mb-0 fw-bold">Transferência #{{ transferencia.pk }}</h5>
+    <small class="text-muted">Registrada em {{ transferencia.criada_em|date:"d/m/Y \à\s H:i" }}
+      {% if transferencia.criada_por %}por {{ transferencia.criada_por.get_full_name|default:transferencia.criada_por }}{% endif %}
+    </small>
+  </div>
+  <span class="ms-auto badge rounded-pill fs-6
+    {% if transferencia.status == 'realizada' %}bg-success
+    {% elif transferencia.status == 'cancelada' %}bg-secondary
+    {% else %}bg-warning text-dark{% endif %}">
+    {{ transferencia.get_status_display }}
+  </span>
+</div>
+
+<div class="row g-3">
+
+  <!-- Operação -->
+  <div class="col-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white border-bottom fw-bold small text-uppercase text-muted py-2">
+        <i class="bi bi-arrow-left-right me-1 text-primary"></i>Operação
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <div class="text-muted small text-uppercase fw-semibold mb-1">Valor Transferido</div>
+          <div class="fs-4 fw-bold">R$ {{ transferencia.valor|floatformat:2|intcomma }}</div>
+        </div>
+        <div class="mb-3">
+          <div class="text-muted small text-uppercase fw-semibold mb-1">Data</div>
+          <div>{{ transferencia.data|date:"d/m/Y" }}</div>
+        </div>
+        <div class="mb-3">
+          <div class="text-muted small text-uppercase fw-semibold mb-1">Observações</div>
+          <div class="small">{{ transferencia.descricao|default:"—"|linebreaksbr }}</div>
+        </div>
+        {% if transferencia.link_sipac %}
+        <div class="mb-3">
+          <div class="text-muted small text-uppercase fw-semibold mb-1">Processo SIPAC</div>
+          <a href="{{ transferencia.link_sipac }}" target="_blank" rel="noopener" class="small">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Abrir processo
+          </a>
+        </div>
+        {% endif %}
+        {% if transferencia.comprovante %}
+        <div>
+          <div class="text-muted small text-uppercase fw-semibold mb-1">Comprovante</div>
+          <a href="{{ transferencia.comprovante.url }}" download class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-download me-1"></i>Baixar arquivo
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Origem -->
+  <div class="col-4">
+    <div class="card border-0 shadow-sm h-100" style="border-left: 3px solid #c6543c !important;">
+      <div class="card-header border-bottom py-2" style="background:#fff1f0;">
+        <span class="fw-bold small text-uppercase" style="color:#c6543c;">
+          <i class="bi bi-box-arrow-up-right me-1"></i>Origem
+        </span>
+      </div>
+      <div class="card-body">
+        {% with r=transferencia.origem %}
+        <div class="mb-2">
+          <div class="text-muted small text-uppercase fw-semibold mb-1">Setor</div>
+          <div class="fw-semibold">{{ r.setor.sigla|default:"—" }}
+            <small class="text-muted fw-normal">— {{ r.setor.nome|default:"" }}</small>
+          </div>
+        </div>
+        <div class="mb-2">
+          <div class="text-muted small text-uppercase fw-semibold mb-1">Origem do Recurso</div>
+          <div>{{ r.origem_recurso }}</div>
+        </div>
+        <div class="mb-2">
+          <div class="text-muted small text-uppercase fw-semibold mb-1">Natureza</div>
+          <div>{{ r.get_natureza_display }}</div>
+        </div>
+        <div class="mb-3">
+          <div class="text-muted small text-uppercase fw-semibold mb-1">Rubrica</div>
+          <div>{{ r.rubrica|default:"—" }}</div>
+        </div>
+        <hr class="my-2">
+        <div class="d-flex justify-content-between small">
+          <span class="text-muted">Saldo atual</span>
+          <span class="fw-semibold">R$ {{ r.saldo_atual|floatformat:2|intcomma }}</span>
+        </div>
+        {% endwith %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Destino -->
+  <div class="col-4">
+    <div class="card border-0 shadow-sm h-100" style="border-left: 3px solid #198754 !important;">
+      <div class="card-header border-bottom py-2" style="background:#e8f5ee;">
+        <span class="fw-bold small text-uppercase text-success">
+          <i class="bi bi-box-arrow-in-down-left me-1"></i>Destino
+        </span>
+      </div>
+      <div class="card-body">
+        {% with r=transferencia.destino %}
+        <div class="mb-2">
+          <div class="text-muted small text-uppercase fw-semibold mb-1">Setor</div>
+          <div class="fw-semibold">{{ r.setor.sigla|default:"—" }}
+            <small class="text-muted fw-normal">— {{ r.setor.nome|default:"" }}</small>
+          </div>
+        </div>
+        <div class="mb-2">
+          <div class="text-muted small text-uppercase fw-semibold mb-1">Origem do Recurso</div>
+          <div>{{ r.origem_recurso }}</div>
+        </div>
+        <div class="mb-2">
+          <div class="text-muted small text-uppercase fw-semibold mb-1">Natureza</div>
+          <div>{{ r.get_natureza_display }}</div>
+        </div>
+        <div class="mb-3">
+          <div class="text-muted small text-uppercase fw-semibold mb-1">Rubrica</div>
+          <div>{{ r.rubrica|default:"—" }}</div>
+        </div>
+        <hr class="my-2">
+        <div class="d-flex justify-content-between small">
+          <span class="text-muted">Saldo atual</span>
+          <span class="fw-semibold">R$ {{ r.saldo_atual|floatformat:2|intcomma }}</span>
+        </div>
+        {% endwith %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="d-flex gap-2 mt-4">
+  {% if transferencia.status != 'cancelada' %}
+  <a href="{% url 'transferencia_edit' transferencia.pk %}" class="btn btn-primary btn-sm">
+    <i class="bi bi-pencil me-1"></i>Editar
+  </a>
+  <a href="{% url 'transferencia_cancelar' transferencia.pk %}" class="btn btn-outline-danger btn-sm">
+    <i class="bi bi-x-circle me-1"></i>Cancelar transferência
+  </a>
+  {% endif %}
+  <a href="{% url 'transferencia_list' %}" class="btn btn-light btn-sm">Voltar à lista</a>
+</div>
+{% endblock %}

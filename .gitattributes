@@ -1,0 +1,8 @@
+# Normaliza line endings: checkout no Windows usa CRLF, no Linux usa LF
+* text=auto
+
+# Scripts que DEVEM ter LF no servidor (shebang e bash exigem)
+*.sh text eol=lf
+entrypoint.sh text eol=lf
+deploy.sh text eol=lf
+Dockerfile text eol=lf

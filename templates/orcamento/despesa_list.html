@@ -1,0 +1,193 @@
+{% extends 'base_orcamento.html' %}
+{% load humanize %}
+
+{% block title %}Despesas — Execução Orçamentária{% endblock %}
+
+{% block extra_head %}
+<style>
+  .orc-list-table .col-chk  { width: 36px; }
+  .orc-list-table .col-data { width: 9%; }
+  .orc-list-table .col-discriminacao { width: 24%; }
+  .orc-list-table .col-setor { width: 9%; }
+  .orc-list-table .col-rubrica { width: 15%; }
+  .orc-list-table .col-empenho { width: 11%; }
+  .orc-list-table .col-qtde { width: 7%; }
+  .orc-list-table .col-comprometido { width: 12%; }
+  .orc-list-table .col-situacao { width: 9%; }
+  .orc-list-table .col-acoes { width: 72px; }
+
+  .chk-row, #chk-all { cursor: pointer; }
+  tr.row-selected { background-color: #fff5f3 !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h4 class="mb-0 fw-bold">Despesas</h4>
+    <small class="text-muted">Bens adquiridos e serviços contratados</small>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <button type="submit"
+            form="form-excluir-lote"
+            id="btn-excluir-lote"
+            class="btn btn-sm btn-outline-danger d-none"
+            onclick="return confirm('Excluir as ' + document.querySelectorAll('.chk-row:checked').length + ' despesa(s) selecionada(s)?')">
+      <i class="bi bi-trash me-1"></i>Apagar (<span id="sel-count">0</span>)
+    </button>
+    <a href="{% url 'despesa_create' %}" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus-lg me-1"></i>Nova Despesa
+    </a>
+  </div>
+</div>
+
+<!-- Filtros -->
+<form method="get" class="card border-0 shadow-sm mb-3 orc-filter-card">
+  <div class="card-header bg-white border-0 fw-semibold">
+    <i class="bi bi-funnel me-1" style="color:var(--orc-primary)"></i>Filtros
+  </div>
+  <div class="card-body">
+    <div class="orc-filter-grid cols-4">
+      <div>
+        <label class="form-label">Ano</label>
+        <select name="ano" class="form-select form-select-sm">
+          <option value="">Todos</option>
+          {% for a in anos %}
+          <option value="{{ a }}" {% if request.GET.ano == a|stringformat:'s' %}selected{% endif %}>{{ a }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Natureza</label>
+        <select name="natureza" class="form-select form-select-sm">
+          <option value="">Todas</option>
+          <option value="custeio" {% if request.GET.natureza == 'custeio' %}selected{% endif %}>Custeio</option>
+          <option value="capital" {% if request.GET.natureza == 'capital' %}selected{% endif %}>Capital</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Situação</label>
+        <select name="situacao" class="form-select form-select-sm">
+          <option value="">Todas</option>
+          {% for s in situacoes %}
+          <option value="{{ s.chave }}" {% if request.GET.situacao == s.chave %}selected{% endif %}>{{ s.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Buscar discriminação</label>
+        <input type="text" name="q" value="{{ request.GET.q }}" class="form-control form-control-sm" placeholder="Pesquisar...">
+      </div>
+      <div class="orc-filter-actions">
+        <button type="submit" class="btn btn-primary btn-sm btn-compact">
+          <i class="bi bi-search me-1"></i>Filtrar
+        </button>
+        <a href="{% url 'despesa_list' %}" class="btn btn-light btn-sm btn-compact">
+          <i class="bi bi-x-circle me-1"></i>Limpar
+        </a>
+      </div>
+    </div>
+  </div>
+</form>
+
+<form id="form-excluir-lote" method="post" action="{% url 'despesa_excluir_lote' %}">
+  {% csrf_token %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 orc-list-table">
+          <thead class="table-light">
+            <tr>
+              <th class="col-chk text-center">
+                <input type="checkbox" id="chk-all" class="form-check-input" title="Selecionar todos">
+              </th>
+              <th class="col-data">Data</th>
+              <th class="text-start col-discriminacao">Discriminação</th>
+              <th class="col-setor">Setor</th>
+              <th class="text-start col-rubrica">Rubrica</th>
+              <th class="col-empenho">Nota Empenho</th>
+              <th class="text-end col-qtde">Qtde</th>
+              <th class="text-end col-comprometido">Comprometido</th>
+              <th class="col-situacao">Situação</th>
+              <th class="text-center col-acoes">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in despesas %}
+            <tr>
+              <td class="text-center">
+                <input type="checkbox" name="pks" value="{{ d.pk }}" class="form-check-input chk-row">
+              </td>
+              <td class="text-center text-nowrap">{{ d.data_despesa|date:"d/m/Y" }}</td>
+              <td>
+                <a href="{% url 'despesa_edit' d.pk %}" class="text-decoration-none text-dark fw-semibold">
+                  {{ d.discriminacao|truncatechars:50 }}
+                </a>
+              </td>
+              <td class="text-center">{{ d.setor.sigla|default:"-" }}</td>
+              <td class="text-nowrap">{{ d.get_rubrica_display|truncatechars:25 }}</td>
+              <td class="text-center">{{ d.nota_empenho|default:"-" }}</td>
+              <td class="text-end">{{ d.quantidade|floatformat:0 }}</td>
+              <td class="text-end text-nowrap fw-semibold">R$ {{ d.valor_comprometido|floatformat:2|intcomma }}</td>
+              <td class="text-center">
+                <span class="badge rounded-pill {{ d.situacao_badge_class }}">
+                  {{ d.get_situacao_display }}
+                </span>
+              </td>
+              <td class="text-center text-nowrap">
+                <a href="{% url 'despesa_edit' d.pk %}" class="btn btn-xs btn-outline-secondary" title="Editar">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <a href="{% url 'despesa_delete' d.pk %}" class="btn btn-xs btn-outline-danger" title="Excluir">
+                  <i class="bi bi-trash"></i>
+                </a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="10" class="text-center text-muted py-4">Nenhuma despesa encontrada.</td></tr>
+            {% endfor %}
+          </tbody>
+          {% if despesas %}
+          <tfoot class="table-light fw-semibold small">
+            <tr>
+              <td colspan="7" class="px-3 text-end">Total comprometido:</td>
+              <td class="text-end text-nowrap">R$ {{ total_comprometido|floatformat:2|intcomma }}</td>
+              <td colspan="2"></td>
+            </tr>
+          </tfoot>
+          {% endif %}
+        </table>
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+(function () {
+  const chkAll  = document.getElementById('chk-all');
+  const btnLote = document.getElementById('btn-excluir-lote');
+  const countEl = document.getElementById('sel-count');
+  const rows    = () => document.querySelectorAll('.chk-row');
+  const checked = () => document.querySelectorAll('.chk-row:checked');
+
+  function sync() {
+    const n = checked().length;
+    countEl.textContent = n;
+    btnLote.classList.toggle('d-none', n === 0);
+    const all = rows().length;
+    chkAll.checked       = n > 0 && n === all;
+    chkAll.indeterminate = n > 0 && n < all;
+    rows().forEach(c => c.closest('tr').classList.toggle('row-selected', c.checked));
+  }
+
+  chkAll.addEventListener('change', function () {
+    rows().forEach(c => c.checked = this.checked);
+    sync();
+  });
+
+  document.querySelectorAll('.chk-row').forEach(c =>
+    c.addEventListener('change', sync)
+  );
+})();
+</script>
+{% endblock %}

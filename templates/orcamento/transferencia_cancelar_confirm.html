@@ -1,0 +1,46 @@
+{% extends 'base_orcamento.html' %}
+{% load humanize %}
+
+{% block title %}Cancelar Transferência #{{ transferencia.pk }}{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+  <a href="{% url 'transferencia_list' %}" class="btn btn-sm btn-light">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h5 class="mb-0 fw-bold">Cancelar Transferência #{{ transferencia.pk }}</h5>
+</div>
+
+<div class="card border-danger border-0 shadow-sm" style="max-width:560px">
+  <div class="card-body p-4">
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:10px;background:#fff1f0;color:#c6543c;font-size:1.3rem">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+      </span>
+      <div>
+        <p class="mb-0 fw-semibold">Confirmar cancelamento</p>
+        <p class="mb-0 small text-muted">Esta ação irá reverter os saldos dos recursos envolvidos.</p>
+      </div>
+    </div>
+
+    <table class="table table-sm small mb-3">
+      <tr><th class="text-muted fw-normal">Valor</th><td class="fw-bold">R$ {{ transferencia.valor|floatformat:2|intcomma }}</td></tr>
+      <tr><th class="text-muted fw-normal">Data</th><td>{{ transferencia.data|date:"d/m/Y" }}</td></tr>
+      <tr><th class="text-muted fw-normal">Origem</th>
+          <td>{{ transferencia.origem.setor.sigla|default:"—" }} — {{ transferencia.origem.origem_recurso }}</td></tr>
+      <tr><th class="text-muted fw-normal">Destino</th>
+          <td>{{ transferencia.destino.setor.sigla|default:"—" }} — {{ transferencia.destino.origem_recurso }}</td></tr>
+    </table>
+
+    <div class="d-flex gap-2">
+      <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger btn-sm">
+          <i class="bi bi-x-circle me-1"></i>Confirmar cancelamento
+        </button>
+      </form>
+      <a href="{% url 'transferencia_list' %}" class="btn btn-light btn-sm">Voltar</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

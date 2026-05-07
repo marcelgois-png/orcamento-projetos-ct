@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% load core_tags %}
+{% block title %}Minhas IRPs – CT/UFPB{% endblock %}
+
+{% block extra_head %}
+<style>
+  .resp-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: .72rem; font-weight: 600; border-radius: 20px; padding: 2px 9px; white-space: nowrap;
+  }
+  .resp-sim { background:#d1e7dd; color:#0a3622; }
+  .resp-nao { background:#e9ecef; color:#6c757d; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h4 class="mb-0 fw-bold"><i class="bi bi-list-check me-2"></i>Intenções de Registro de Preço</h4>
+</div>
+
+<!-- IRPs Abertas -->
+<h6 class="text-uppercase text-muted fw-semibold mb-2 small">
+  <i class="bi bi-people-fill text-success me-1"></i> Coletando respostas
+</h6>
+
+{% if irps_abertas %}
+<div class="row g-3 mb-4">
+  {% for irp in irps_abertas %}
+  {% with resp=respostas_dict|get_item:irp.pk %}
+  <div class="col-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body py-2 px-3">
+
+        <!-- Linha 1: título + badge + botão -->
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <span class="fw-bold flex-grow-1" style="font-size:.9rem; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+            {{ irp.titulo }}
+          </span>
+          {% if not irp.itens_ativos %}
+            <span class="fase-badge" style="background:#e9ecef;color:#6c757d;flex-shrink:0">
+              <i class="bi bi-hourglass"></i>Aguardando itens
+            </span>
+          {% elif resp %}
+            <span class="fase-badge" style="background:#d1e7dd;color:#0a3622;flex-shrink:0">
+              <i class="bi bi-check2-circle-fill"></i>Respondida
+            </span>
+          {% endif %}
+          {% if irp.itens_ativos %}
+          <a href="{% url 'irp_responder' irp.pk %}" class="btn btn-primary btn-sm flex-shrink-0" style="font-size:.78rem;">
+            {% if resp %}<i class="bi bi-pencil"></i> Editar
+            {% else %}<i class="bi bi-play-fill"></i> Responder{% endif %}
+          </a>
+          {% else %}
+          <span class="btn btn-secondary btn-sm disabled flex-shrink-0" style="font-size:.78rem;pointer-events:none;">
+            <i class="bi bi-lock"></i>
+          </span>
+          {% endif %}
+        </div>
+
+        <!-- Linha 2: descrição -->
+        {% if irp.descricao %}
+        <p class="text-muted mb-1" style="font-size:.8rem; line-height:1.4; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">
+          {{ irp.descricao }}
+        </p>
+        {% endif %}
+
+        <!-- Linha 3: meta -->
+        <div class="d-flex flex-wrap gap-3 text-muted" style="font-size:.78rem;">
+          <span><i class="bi bi-box-seam me-1"></i>{{ irp.itens_ativos }} iten{{ irp.itens_ativos|pluralize:"s" }}</span>
+          <span><i class="bi bi-people me-1"></i>{{ irp.respostas_enviadas }} pessoa{{ irp.respostas_enviadas|pluralize }} responderam à IRP</span>
+          <span class="text-danger fw-semibold"><i class="bi bi-clock me-1"></i>Prazo: {{ irp.prazo|date:"d/m/Y" }}</span>
+        </div>
+
+        <!-- Linha 4: situação da resposta -->
+        <div class="mt-1" style="font-size:.78rem;">
+          {% if resp %}
+          <span class="text-success"><i class="bi bi-check-circle me-1"></i>Você intencionou {{ resp.total_itens_intencionados }} ite{{ resp.total_itens_intencionados|pluralize:"m,ns" }} ({{ resp.total_valor|brl }}) em {{ resp.respondida_em|date:"d/m/Y" }}{% if resp.foi_editada %} (editada){% endif %}</span>
+          {% else %}
+          <span class="text-muted"><i class="bi bi-dash-circle me-1"></i>Você ainda não intencionou itens nesta IRP</span>
+          {% endif %}
+        </div>
+
+      </div>
+    </div>
+  </div>
+  {% endwith %}
+  {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info border-0 shadow-sm">
+  <i class="bi bi-info-circle me-1"></i>
+  Não há IRPs abertas no momento.
+</div>
+{% endif %}
+
+{% endblock %}

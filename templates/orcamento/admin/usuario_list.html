@@ -1,0 +1,288 @@
+{% extends 'base_orcamento.html' %}
+{% block title %}Usuários — Execução Orçamentária{% endblock %}
+
+{% block extra_head %}
+<style>
+  .table tbody td { font-size: .82rem; }
+  .col-nome  { font-weight: 400; }
+  .col-nome.inativo { color: #adb5bd; text-decoration: line-through; }
+  .col-login { font-size: .82rem; color: #6c757d; font-family: 'SFMono-Regular', Consolas, monospace; }
+  .col-setor { font-size: .82rem; color: #495057; }
+  .avatar-thumb {
+    width: 34px; height: 34px; border-radius: 50%;
+    object-fit: cover; border: 1.5px solid #dee2e6;
+  }
+  .avatar-placeholder {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: #e9ecef; display: inline-flex;
+    align-items: center; justify-content: center;
+    color: #adb5bd; font-size: 1.1rem; flex-shrink: 0;
+    border: 1.5px solid #dee2e6;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Cabeçalho -->
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h4 class="fw-bold mb-0">
+    <i class="bi bi-people me-2" style="color:var(--orc-primary)"></i>Usuários
+  </h4>
+  <div class="d-flex gap-2 flex-wrap align-items-center">
+    <a href="{% url 'orc_usuario_create' %}" class="btn btn-sm fw-semibold"
+       style="background:var(--orc-primary);color:#fff">
+      <i class="bi bi-person-plus me-1"></i> Novo Usuário
+    </a>
+  </div>
+</div>
+
+<!-- Filtros -->
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+  <div class="input-group input-group-sm" style="max-width:340px">
+    <span class="input-group-text bg-white border-end-0">
+      <i class="bi bi-search text-muted"></i>
+    </span>
+    <input type="text" id="busca-usuario"
+           class="form-control border-start-0 ps-0"
+           placeholder="Filtrar por nome ou login...">
+  </div>
+
+  <select id="filtro-situacao" class="ts-filtro" multiple placeholder="Todas as situações">
+    <option value="ativo">Ativo</option>
+    <option value="inativo">Inativo</option>
+  </select>
+
+  <select id="filtro-perfil" class="ts-filtro" multiple placeholder="Todos os perfis">
+    <option value="admin">Administrador</option>
+    <option value="gestor_financeiro">Gestor Financeiro</option>
+    <option value="ordenador_despesa">Ordenador de Despesa</option>
+    <option value="gestor_irp">Assessor de Planejamento</option>
+    <option value="diretor_centro">Diretor de Centro</option>
+    <option value="aprovador_setor">Chefia Setorial</option>
+    <option value="respondente">Respondente</option>
+  </select>
+
+  <button type="button" id="btn-limpar-filtros"
+          class="btn btn-sm btn-outline-secondary d-none"
+          onclick="limparFiltros()">
+    <i class="bi bi-x-lg me-1"></i> Limpar
+  </button>
+</div>
+
+<!-- Tabela -->
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0" id="tabela-usuarios">
+      <thead class="table-light">
+        <tr>
+          <th style="width:46px"></th>
+          <th class="sortable" data-col="1">Nome <span class="sort-icon"></span></th>
+          <th class="sortable" data-col="2" style="width:130px">Login <span class="sort-icon"></span></th>
+          <th class="sortable" data-col="3">Setor <span class="sort-icon"></span></th>
+          <th class="sortable" data-col="4" style="width:220px">Perfil <span class="sort-icon"></span></th>
+          <th class="sortable text-center" data-col="5" style="width:95px">Situação <span class="sort-icon"></span></th>
+          <th style="width:90px" class="text-center">Ações</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-usuarios">
+        {% for u in usuarios %}
+        {% with perfil=u.perfil setor=u.perfil.setor %}
+        <tr class="usuario-row"
+            data-busca="{{ u.username|lower }} {% if u.perfil %}{{ u.perfil.nome_completo|lower }}{% endif %}"
+            data-situacao="{% if u.is_active %}ativo{% else %}inativo{% endif %}"
+            data-perfil="{% if u.perfil %}{{ u.perfil.perfil_tipo }}{% else %}respondente{% endif %}">
+
+          <!-- Foto -->
+          <td class="text-center" style="padding:.4rem .5rem">
+            {% if perfil and perfil.foto %}
+              <img src="{{ perfil.foto.url }}" alt="" class="avatar-thumb">
+            {% else %}
+              <span class="avatar-placeholder"><i class="bi bi-person-fill"></i></span>
+            {% endif %}
+          </td>
+
+          <!-- Nome -->
+          <td data-sort="{% if u.perfil %}{{ u.perfil.nome_completo|lower }}{% else %}{{ u.username|lower }}{% endif %}">
+            <span class="col-nome {% if not u.is_active %}inativo{% endif %}">
+              {% if u.perfil %}{{ u.perfil.nome_completo|default:u.username }}
+              {% else %}<span class="fst-italic text-muted">{{ u.username }}</span>{% endif %}
+            </span>
+          </td>
+
+          <!-- Login -->
+          <td class="col-login" data-sort="{{ u.username|lower }}">{{ u.username }}</td>
+
+          <!-- Setor -->
+          <td class="col-setor" data-sort="{% if setor %}{{ setor.nome|lower }}{% endif %}">
+            {% if setor %}
+              {{ setor.nome|truncatechars:40 }}
+              {% if setor.sigla %}<span class="text-muted" style="font-size:.78rem">({{ setor.sigla }})</span>{% endif %}
+            {% else %}<span class="opacity-25">—</span>{% endif %}
+          </td>
+
+          <!-- Perfil -->
+          <td data-sort="{% if u.perfil %}{{ u.perfil.perfil_tipo }}{% else %}respondente{% endif %}">
+            {% if u.perfil %}
+            {% with pt=u.perfil.perfil_tipo %}
+            <span class="d-flex align-items-center gap-1" style="font-size:.82rem">
+            {% if pt == 'admin' %}
+              <i class="bi bi-stars text-dark"></i><span>Administrador</span>
+            {% elif pt == 'gestor_financeiro' %}
+              <i class="bi bi-cash-coin" style="color:var(--orc-primary)"></i><span>Gestor Financeiro</span>
+            {% elif pt == 'ordenador_despesa' %}
+              <i class="bi bi-pen-fill text-warning"></i><span>Ordenador de Despesa</span>
+            {% elif pt == 'gestor_irp' %}
+              <i class="bi bi-clipboard2-data text-primary"></i><span>Assessor de Planejamento</span>
+            {% elif pt == 'diretor_centro' %}
+              <i class="bi bi-person-badge-fill text-dark"></i><span>Diretor de Centro</span>
+            {% elif pt == 'aprovador_setor' %}
+              <i class="bi bi-check2-circle text-success"></i><span>Chefia Setorial</span>
+            {% else %}
+              <i class="bi bi-pencil-square text-secondary"></i><span>Respondente</span>
+            {% endif %}
+            </span>
+            {% endwith %}
+            {% endif %}
+          </td>
+
+          <!-- Situação -->
+          <td class="text-center" data-sort="{{ u.is_active|yesno:'0,1' }}">
+            {% if u.is_active %}
+              <span class="badge-ativo">Ativo</span>
+            {% else %}
+              <span class="badge-inativo">Inativo</span>
+            {% endif %}
+          </td>
+
+          <!-- Ações -->
+          <td class="text-center">
+            <div class="d-flex gap-1 justify-content-center">
+              <a href="{% url 'orc_usuario_edit' u.pk %}"
+                 class="acao-btn acao-btn-edit" title="Editar usuário">
+                <i class="bi bi-pencil-square"></i>
+              </a>
+
+              <form id="form-toggle-{{ u.pk }}" method="post"
+                    action="{% url 'orc_usuario_toggle' u.pk %}">
+                {% csrf_token %}
+              </form>
+              <button type="submit" form="form-toggle-{{ u.pk }}"
+                      class="acao-btn {% if u.is_active %}acao-btn-off{% else %}acao-btn-on{% endif %}"
+                      title="{% if u.is_active %}Desativar{% else %}Ativar{% endif %}"
+                      onclick="return confirm('{% if u.is_active %}Desativar{% else %}Ativar{% endif %} o usuário &quot;{{ u.username|escapejs }}&quot;?')">
+                <i class="bi {% if u.is_active %}bi-toggle-off{% else %}bi-toggle-on{% endif %}"></i>
+              </button>
+
+              <form id="form-apagar-{{ u.pk }}" method="post"
+                    action="{% url 'orc_usuario_apagar' u.pk %}">
+                {% csrf_token %}
+              </form>
+              <button type="submit" form="form-apagar-{{ u.pk }}"
+                      class="acao-btn acao-btn-del"
+                      title="Apagar permanentemente"
+                      onclick="return confirm('Apagar PERMANENTEMENTE o usuário &quot;{{ u.username|escapejs }}&quot;?\n\nEsta ação não pode ser desfeita.')">
+                <i class="bi bi-trash3-fill"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% endwith %}
+        {% empty %}
+        <tr id="linha-vazia">
+          <td colspan="7" class="text-center text-muted py-5">
+            <i class="bi bi-people fs-2 d-block mb-2 opacity-25"></i>
+            Nenhum usuário cadastrado.
+            <a href="{% url 'orc_usuario_create' %}">Adicionar</a>.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card-footer bg-white border-top d-flex justify-content-between align-items-center py-2">
+    <span id="contador-rodape">
+      Total: <strong>{{ usuarios.count }}</strong> usuário(s)
+    </span>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const TOTAL_GERAL = {{ usuarios.count }};
+const inputBusca = document.getElementById('busca-usuario');
+const btnLimpar  = document.getElementById('btn-limpar-filtros');
+
+const tsSituacao = new TomSelect('#filtro-situacao', {
+  plugins: ['remove_button'],
+  placeholder: 'Todas as situações',
+  onInitialize() { this.wrapper.style.minWidth = '170px'; },
+  onChange: aplicarFiltros,
+});
+const tsPerfil = new TomSelect('#filtro-perfil', {
+  plugins: ['remove_button'],
+  placeholder: 'Todos os perfis',
+  onInitialize() { this.wrapper.style.minWidth = '200px'; },
+  onChange: aplicarFiltros,
+});
+
+function aplicarFiltros() {
+  const termo     = inputBusca.value.toLowerCase().trim();
+  const situacoes = tsSituacao.getValue();
+  const perfis    = tsPerfil.getValue();
+  let visiveis    = 0;
+
+  document.querySelectorAll('.usuario-row').forEach(tr => {
+    const passaBusca    = !termo           || tr.dataset.busca.includes(termo);
+    const passaSituacao = !situacoes.length || situacoes.includes(tr.dataset.situacao);
+    const passaPerfil   = !perfis.length    || perfis.includes(tr.dataset.perfil);
+    const mostrar = passaBusca && passaSituacao && passaPerfil;
+    tr.style.display = mostrar ? '' : 'none';
+    if (mostrar) visiveis++;
+  });
+
+  const rodape = document.getElementById('contador-rodape');
+  const filtroAtivo = termo || situacoes.length || perfis.length;
+  if (filtroAtivo) {
+    rodape.innerHTML = `Exibindo <strong>${visiveis}</strong> de <strong>${TOTAL_GERAL}</strong> usuário(s)`;
+    btnLimpar.classList.remove('d-none');
+  } else {
+    rodape.innerHTML = `Total: <strong>${TOTAL_GERAL}</strong> usuário(s)`;
+    btnLimpar.classList.add('d-none');
+  }
+}
+
+function limparFiltros() {
+  inputBusca.value = '';
+  tsSituacao.clear();
+  tsPerfil.clear();
+  aplicarFiltros();
+}
+
+inputBusca.addEventListener('input', aplicarFiltros);
+
+// Ordenação
+let sortCol = -1, sortAsc = true;
+document.querySelectorAll('th.sortable').forEach(th => {
+  th.style.cursor = 'pointer';
+  th.addEventListener('click', function () {
+    const col = parseInt(this.dataset.col);
+    sortAsc = sortCol === col ? !sortAsc : true;
+    sortCol = col;
+    document.querySelectorAll('th.sortable').forEach(h => h.classList.remove('asc', 'desc'));
+    this.classList.add(sortAsc ? 'asc' : 'desc');
+    const tbody = document.getElementById('tbody-usuarios');
+    Array.from(tbody.querySelectorAll('tr.usuario-row'))
+      .sort((a, b) => {
+        const va = (a.querySelectorAll('td')[col]?.dataset.sort ?? '').toLowerCase();
+        const vb = (b.querySelectorAll('td')[col]?.dataset.sort ?? '').toLowerCase();
+        return sortAsc ? va.localeCompare(vb, 'pt-BR') : vb.localeCompare(va, 'pt-BR');
+      })
+      .forEach(tr => tbody.appendChild(tr));
+  });
+});
+</script>
+{% endblock %}

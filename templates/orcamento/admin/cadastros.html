@@ -1,0 +1,667 @@
+{% extends 'base_orcamento.html' %}
+{% block title %}Cadastros de Listas — Execução Orçamentária{% endblock %}
+
+{% block extra_head %}
+<style>
+  .cadastro-bloco {
+    margin-bottom: 2rem;
+  }
+  .cadastro-bloco .card-header {
+    background: #fff;
+    border-bottom: 1px solid #f0e8e5;
+    padding: .75rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .cadastro-bloco .card-header .bloco-titulo {
+    font-weight: 700;
+    font-size: .95rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+  }
+  .cadastro-bloco .card-header .bloco-titulo i {
+    color: var(--orc-primary);
+  }
+  .lista-item {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .5rem 1.25rem;
+    border-bottom: 1px solid #f5f5f5;
+    font-size: .875rem;
+  }
+  .lista-item:last-of-type {
+    border-bottom: none;
+  }
+  .lista-item .item-nome {
+    flex: 1;
+    font-weight: 500;
+  }
+  .lista-item .item-nome.inativo {
+    color: #adb5bd;
+    text-decoration: line-through;
+  }
+  .lista-item .item-badge-inativo {
+    font-size: .7rem;
+    padding: .15rem .45rem;
+    border-radius: 4px;
+    background: #f1f3f8;
+    color: #adb5bd;
+    font-weight: 600;
+    letter-spacing: .03em;
+  }
+  .lista-item .item-ordem {
+    width: 24px;
+    text-align: center;
+    color: #ced4da;
+    font-size: .75rem;
+    flex-shrink: 0;
+  }
+  /* Formulário inline de adição */
+  .form-adicionar {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .75rem 1.25rem;
+    background: #fdf7f5;
+    border-top: 1px solid #f0e8e5;
+    border-radius: 0 0 .5rem .5rem;
+  }
+  .form-adicionar input[type=text] {
+    flex: 1;
+    max-width: 320px;
+    font-size: .875rem;
+    border-radius: .35rem;
+    border: 1.5px solid #dee2e6;
+    padding: .35rem .65rem;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .form-adicionar input[type=text]:focus {
+    border-color: var(--orc-primary);
+    box-shadow: 0 0 0 3px rgba(198,84,60,.12);
+  }
+  /* Modal de edição */
+  .modal-edit-input {
+    font-size: .875rem;
+  }
+  /* Botões de ação inline */
+  .btn-item-acao {
+    background: none;
+    border: none;
+    padding: .25rem .4rem;
+    border-radius: .3rem;
+    cursor: pointer;
+    font-size: .85rem;
+    line-height: 1;
+    transition: background .12s;
+    color: #adb5bd;
+  }
+  .btn-item-acao:hover { color: #495057; background: #f1f3f8; }
+  .btn-item-acao.del:hover { color: #dc3545; background: #fff3f3; }
+  .btn-item-acao.off:hover { color: #fd7e14; background: #fff8f0; }
+  .btn-item-acao.on:hover  { color: #198754; background: #f0fff4; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="d-flex align-items-center gap-2 mb-4">
+  <h4 class="fw-bold mb-0">
+    <i class="bi bi-list-check me-2" style="color:var(--orc-primary)"></i>Cadastros de Listas
+  </h4>
+  <span class="text-muted small ms-1">Gerencie os valores de referência usados nos formulários</span>
+</div>
+
+<!-- ── Bloco: Natureza do Recurso ── -->
+<div class="cadastro-bloco">
+  <div class="card border-0 shadow-sm">
+    <div class="card-header">
+      <span class="bloco-titulo">
+        <i class="bi bi-tag-fill"></i>
+        Natureza do Recurso
+        <span class="badge rounded-pill ms-1"
+              style="background:rgba(198,84,60,.12);color:var(--orc-primary);font-size:.72rem">
+          {{ naturezas.count }}
+        </span>
+      </span>
+      <span class="text-muted small">Categorias de natureza usadas em Recursos e Despesas</span>
+    </div>
+
+    <!-- Listagem -->
+    {% for n in naturezas %}
+    <div class="lista-item">
+      <span class="item-ordem">{{ forloop.counter }}</span>
+
+      <span class="item-nome {% if not n.ativo %}inativo{% endif %}">{{ n.nome }}</span>
+
+      {% if not n.ativo %}
+      <span class="item-badge-inativo">Inativo</span>
+      {% endif %}
+
+      <!-- Botão editar: abre modal -->
+      <button type="button" class="btn-item-acao"
+              title="Editar"
+              data-bs-toggle="modal"
+              data-bs-target="#modal-edit-natureza"
+              data-pk="{{ n.pk }}"
+              data-nome="{{ n.nome }}">
+        <i class="bi bi-pencil"></i>
+      </button>
+
+      <!-- Ativar / Desativar -->
+      <form method="post" action="{% url 'orc_natureza_toggle' n.pk %}" style="margin:0">
+        {% csrf_token %}
+        <button type="submit" class="btn-item-acao {% if n.ativo %}off{% else %}on{% endif %}"
+                title="{% if n.ativo %}Desativar{% else %}Ativar{% endif %}"
+                onclick="return confirm('{% if n.ativo %}Desativar{% else %}Ativar{% endif %} a natureza &quot;{{ n.nome|escapejs }}&quot;?')">
+          <i class="bi {% if n.ativo %}bi-toggle-on{% else %}bi-toggle-off{% endif %}"></i>
+        </button>
+      </form>
+
+      <!-- Excluir -->
+      <form method="post" action="{% url 'orc_natureza_delete' n.pk %}" style="margin:0">
+        {% csrf_token %}
+        <button type="submit" class="btn-item-acao del"
+                title="Excluir"
+                onclick="return confirm('Excluir a natureza &quot;{{ n.nome|escapejs }}&quot;?\n\nAtenção: verifique se não há recursos ou despesas vinculados antes de excluir.')">
+          <i class="bi bi-trash3"></i>
+        </button>
+      </form>
+    </div>
+    {% empty %}
+    <div class="text-center text-muted py-4 small">
+      <i class="bi bi-inbox fs-3 d-block mb-2 opacity-25"></i>
+      Nenhuma natureza cadastrada ainda.
+    </div>
+    {% endfor %}
+
+    <!-- Formulário de adição inline -->
+    <form method="post" action="{% url 'orc_natureza_create' %}" class="form-adicionar">
+      {% csrf_token %}
+      <i class="bi bi-plus-circle" style="color:var(--orc-primary);font-size:1.05rem;flex-shrink:0"></i>
+      <input type="text" name="nome" placeholder="Nova natureza…" autocomplete="off" maxlength="100">
+      <button type="submit" class="btn btn-sm fw-semibold"
+              style="background:var(--orc-primary);color:#fff;white-space:nowrap">
+        Adicionar
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ── Bloco: Rubricas ── -->
+<div class="cadastro-bloco">
+  <div class="card border-0 shadow-sm">
+    <div class="card-header">
+      <span class="bloco-titulo">
+        <i class="bi bi-tag-fill"></i>
+        Rubricas
+        <span class="badge rounded-pill ms-1"
+              style="background:rgba(198,84,60,.12);color:var(--orc-primary);font-size:.72rem">
+          {{ rubricas.count }}
+        </span>
+      </span>
+      <span class="text-muted small">Códigos e descrições de rubrica usados em Recursos e Despesas</span>
+    </div>
+
+    <!-- Cabeçalho da tabela -->
+    <div style="display:grid;grid-template-columns:2rem 1fr 1fr auto;gap:.5rem;
+                padding:.45rem 1.25rem;background:#f8f9fa;
+                border-bottom:1px solid #f0e8e5;font-size:.72rem;
+                font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6c757d">
+      <span></span>
+      <span>Rubrica</span>
+      <span>Natureza do Recurso</span>
+      <span style="width:80px"></span>
+    </div>
+
+    {% for r in rubricas %}
+    <div class="lista-item" style="display:grid;grid-template-columns:2rem 1fr 1fr auto;gap:.5rem;align-items:center">
+      <span class="item-ordem">{{ forloop.counter }}</span>
+
+      <span class="item-nome {% if not r.ativo %}inativo{% endif %}">
+        <span class="text-muted me-1" style="font-family:monospace;font-size:.8rem">{{ r.codigo }}</span>
+        {{ r.nome }}
+        {% if not r.ativo %}<span class="item-badge-inativo ms-1">Inativo</span>{% endif %}
+      </span>
+
+      <span style="font-size:.82rem;color:#495057">
+        {% if r.natureza %}{{ r.natureza.nome }}{% else %}<span class="opacity-25">—</span>{% endif %}
+      </span>
+
+      <!-- Ações -->
+      <span class="d-flex gap-1 justify-content-end" style="width:80px">
+        <button type="button" class="btn-item-acao"
+                title="Editar"
+                data-bs-toggle="modal"
+                data-bs-target="#modal-edit-rubrica"
+                data-pk="{{ r.pk }}"
+                data-codigo="{{ r.codigo }}"
+                data-nome="{{ r.nome }}"
+                data-natureza="{{ r.natureza.pk|default:'' }}">
+          <i class="bi bi-pencil"></i>
+        </button>
+
+        <form method="post" action="{% url 'orc_rubrica_toggle' r.pk %}" style="margin:0">
+          {% csrf_token %}
+          <button type="submit" class="btn-item-acao {% if r.ativo %}off{% else %}on{% endif %}"
+                  title="{% if r.ativo %}Desativar{% else %}Ativar{% endif %}"
+                  onclick="return confirm('{% if r.ativo %}Desativar{% else %}Ativar{% endif %} a rubrica &quot;{{ r|escapejs }}&quot;?')">
+            <i class="bi {% if r.ativo %}bi-toggle-on{% else %}bi-toggle-off{% endif %}"></i>
+          </button>
+        </form>
+
+        <form method="post" action="{% url 'orc_rubrica_delete' r.pk %}" style="margin:0">
+          {% csrf_token %}
+          <button type="submit" class="btn-item-acao del"
+                  title="Excluir"
+                  onclick="return confirm('Excluir a rubrica &quot;{{ r|escapejs }}&quot;?')">
+            <i class="bi bi-trash3"></i>
+          </button>
+        </form>
+      </span>
+    </div>
+    {% empty %}
+    <div class="text-center text-muted py-4 small">
+      <i class="bi bi-inbox fs-3 d-block mb-2 opacity-25"></i>
+      Nenhuma rubrica cadastrada ainda.
+    </div>
+    {% endfor %}
+
+    <!-- Formulário inline de adição -->
+    <form method="post" action="{% url 'orc_rubrica_create' %}" class="form-adicionar" style="gap:.4rem;flex-wrap:wrap">
+      {% csrf_token %}
+      <i class="bi bi-plus-circle" style="color:var(--orc-primary);font-size:1.05rem;flex-shrink:0"></i>
+      <input type="text" name="codigo" placeholder="Código (ex: 339030)" autocomplete="off" maxlength="20"
+             style="max-width:160px">
+      <input type="text" name="nome" placeholder="Nome da rubrica…" autocomplete="off" maxlength="200"
+             style="flex:1;min-width:180px;max-width:320px">
+      <select name="natureza" class="form-select form-select-sm" style="max-width:180px;font-size:.875rem">
+        <option value="">— Natureza —</option>
+        {% for n in naturezas_choices %}
+          <option value="{{ n.pk }}">{{ n.nome }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-sm fw-semibold"
+              style="background:var(--orc-primary);color:#fff;white-space:nowrap">
+        Adicionar
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ── Bloco: Origem do Recurso ── -->
+<div class="cadastro-bloco">
+  <div class="card border-0 shadow-sm">
+    <div class="card-header">
+      <span class="bloco-titulo">
+        <i class="bi bi-tag-fill"></i>
+        Origem do Recurso
+        <span class="badge rounded-pill ms-1"
+              style="background:rgba(198,84,60,.12);color:var(--orc-primary);font-size:.72rem">
+          {{ origens.count }}
+        </span>
+      </span>
+      <span class="text-muted small">Origens usadas em Recursos Orçamentários</span>
+    </div>
+
+    {% for o in origens %}
+    <div class="lista-item">
+      <span class="item-ordem">{{ forloop.counter }}</span>
+      <span class="item-nome {% if not o.ativo %}inativo{% endif %}">{{ o.nome }}</span>
+      {% if not o.ativo %}<span class="item-badge-inativo">Inativo</span>{% endif %}
+
+      <button type="button" class="btn-item-acao"
+              title="Editar"
+              data-bs-toggle="modal"
+              data-bs-target="#modal-edit-origem"
+              data-pk="{{ o.pk }}"
+              data-nome="{{ o.nome }}">
+        <i class="bi bi-pencil"></i>
+      </button>
+
+      <form method="post" action="{% url 'orc_origem_toggle' o.pk %}" style="margin:0">
+        {% csrf_token %}
+        <button type="submit" class="btn-item-acao {% if o.ativo %}off{% else %}on{% endif %}"
+                title="{% if o.ativo %}Desativar{% else %}Ativar{% endif %}"
+                onclick="return confirm('{% if o.ativo %}Desativar{% else %}Ativar{% endif %} a origem &quot;{{ o.nome|escapejs }}&quot;?')">
+          <i class="bi {% if o.ativo %}bi-toggle-on{% else %}bi-toggle-off{% endif %}"></i>
+        </button>
+      </form>
+
+      <form method="post" action="{% url 'orc_origem_delete' o.pk %}" style="margin:0">
+        {% csrf_token %}
+        <button type="submit" class="btn-item-acao del"
+                title="Excluir"
+                onclick="return confirm('Excluir a origem &quot;{{ o.nome|escapejs }}&quot;?')">
+          <i class="bi bi-trash3"></i>
+        </button>
+      </form>
+    </div>
+    {% empty %}
+    <div class="text-center text-muted py-4 small">
+      <i class="bi bi-inbox fs-3 d-block mb-2 opacity-25"></i>
+      Nenhuma origem cadastrada ainda.
+    </div>
+    {% endfor %}
+
+    <form method="post" action="{% url 'orc_origem_create' %}" class="form-adicionar">
+      {% csrf_token %}
+      <i class="bi bi-plus-circle" style="color:var(--orc-primary);font-size:1.05rem;flex-shrink:0"></i>
+      <input type="text" name="nome" placeholder="Nova origem…" autocomplete="off" maxlength="200">
+      <button type="submit" class="btn btn-sm fw-semibold"
+              style="background:var(--orc-primary);color:#fff;white-space:nowrap">
+        Adicionar
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ── Bloco: Situação da Despesa ── -->
+<div class="cadastro-bloco">
+  <div class="card border-0 shadow-sm">
+    <div class="card-header">
+      <span class="bloco-titulo">
+        <i class="bi bi-clipboard-check"></i>
+        Situação da Despesa
+        <span class="badge rounded-pill ms-1"
+              style="background:rgba(198,84,60,.12);color:var(--orc-primary);font-size:.72rem">
+          {{ situacoes.count }}
+        </span>
+      </span>
+      <span class="text-muted small">Categorias usadas no cadastro e nos filtros de despesas</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:2rem 1fr 9rem 7rem auto;gap:.5rem;
+                padding:.45rem 1.25rem;background:#f8f9fa;
+                border-bottom:1px solid #f0e8e5;font-size:.72rem;
+                font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6c757d">
+      <span></span>
+      <span>Categoria</span>
+      <span>Saldo</span>
+      <span>Visual</span>
+      <span style="width:80px"></span>
+    </div>
+
+    {% for s in situacoes %}
+    <div class="lista-item" style="display:grid;grid-template-columns:2rem 1fr 9rem 7rem auto;gap:.5rem;align-items:center">
+      <span class="item-ordem">{{ forloop.counter }}</span>
+
+      <span class="item-nome {% if not s.ativo %}inativo{% endif %}">
+        {{ s.nome }}
+        <span class="text-muted ms-1" style="font-family:monospace;font-size:.72rem">{{ s.chave }}</span>
+        {% if not s.ativo %}<span class="item-badge-inativo ms-1">Inativo</span>{% endif %}
+      </span>
+
+      <span style="font-size:.78rem;color:#495057">
+        {% if s.impacta_saldo %}Deduz saldo{% else %}Não deduz{% endif %}
+      </span>
+
+      <span>
+        <span class="badge rounded-pill {{ s.badge|default:'bg-secondary' }}">{{ s.nome }}</span>
+      </span>
+
+      <span class="d-flex gap-1 justify-content-end" style="width:80px">
+        <button type="button" class="btn-item-acao"
+                title="Editar"
+                data-bs-toggle="modal"
+                data-bs-target="#modal-edit-situacao-despesa"
+                data-pk="{{ s.pk }}"
+                data-nome="{{ s.nome }}"
+                data-impacta-saldo="{% if s.impacta_saldo %}1{% else %}0{% endif %}"
+                data-badge="{{ s.badge }}">
+          <i class="bi bi-pencil"></i>
+        </button>
+
+        <form method="post" action="{% url 'orc_situacao_despesa_toggle' s.pk %}" style="margin:0">
+          {% csrf_token %}
+          <button type="submit" class="btn-item-acao {% if s.ativo %}off{% else %}on{% endif %}"
+                  title="{% if s.ativo %}Desativar{% else %}Ativar{% endif %}"
+                  onclick="return confirm('{% if s.ativo %}Desativar{% else %}Ativar{% endif %} a situação &quot;{{ s.nome|escapejs }}&quot;?')">
+            <i class="bi {% if s.ativo %}bi-toggle-on{% else %}bi-toggle-off{% endif %}"></i>
+          </button>
+        </form>
+
+        <form method="post" action="{% url 'orc_situacao_despesa_delete' s.pk %}" style="margin:0">
+          {% csrf_token %}
+          <button type="submit" class="btn-item-acao del"
+                  title="Excluir"
+                  onclick="return confirm('Excluir a situação &quot;{{ s.nome|escapejs }}&quot;?')">
+            <i class="bi bi-trash3"></i>
+          </button>
+        </form>
+      </span>
+    </div>
+    {% empty %}
+    <div class="text-center text-muted py-4 small">
+      <i class="bi bi-inbox fs-3 d-block mb-2 opacity-25"></i>
+      Nenhuma situação de despesa cadastrada ainda.
+    </div>
+    {% endfor %}
+
+    <form method="post" action="{% url 'orc_situacao_despesa_create' %}" class="form-adicionar" style="gap:.4rem;flex-wrap:wrap">
+      {% csrf_token %}
+      <i class="bi bi-plus-circle" style="color:var(--orc-primary);font-size:1.05rem;flex-shrink:0"></i>
+      <input type="text" name="nome" placeholder="Nova situação…" autocomplete="off" maxlength="100"
+             style="flex:1;min-width:180px;max-width:320px">
+      <select name="badge" class="form-select form-select-sm" style="max-width:180px;font-size:.875rem">
+        <option value="bg-secondary">Cinza</option>
+        <option value="bg-warning text-dark">Amarelo</option>
+        <option value="bg-primary">Azul</option>
+        <option value="bg-success">Verde</option>
+        <option value="bg-danger">Vermelho</option>
+        <option value="bg-info text-dark">Azul claro</option>
+      </select>
+      <label class="form-check d-flex align-items-center gap-2 m-0 small" style="white-space:nowrap">
+        <input type="checkbox" name="impacta_saldo" class="form-check-input m-0" checked>
+        Deduz do saldo
+      </label>
+      <button type="submit" class="btn btn-sm fw-semibold"
+              style="background:var(--orc-primary);color:#fff;white-space:nowrap">
+        Adicionar
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Modal de edição de natureza -->
+<div class="modal fade" id="modal-edit-natureza" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-0">
+        <h6 class="modal-title fw-bold">
+          <i class="bi bi-pencil me-1" style="color:var(--orc-primary)"></i>Editar Natureza
+        </h6>
+        <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" id="form-edit-natureza" action="">
+        {% csrf_token %}
+        <div class="modal-body pt-2">
+          <label class="form-label fw-semibold small">Nome</label>
+          <input type="text" name="nome" id="input-edit-natureza-nome"
+                 class="form-control modal-edit-input" maxlength="100" required>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm fw-semibold"
+                  style="background:var(--orc-primary);color:#fff">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de edição de rubrica -->
+<div class="modal fade" id="modal-edit-rubrica" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-0">
+        <h6 class="modal-title fw-bold">
+          <i class="bi bi-pencil me-1" style="color:var(--orc-primary)"></i>Editar Rubrica
+        </h6>
+        <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" id="form-edit-rubrica" action="">
+        {% csrf_token %}
+        <div class="modal-body pt-2">
+          <div class="row g-3">
+            <div class="col-4">
+              <label class="form-label fw-semibold small">Código <span class="text-danger">*</span></label>
+              <input type="text" name="codigo" id="input-edit-rubrica-codigo"
+                     class="form-control form-control-sm" maxlength="20" required>
+            </div>
+            <div class="col-8">
+              <label class="form-label fw-semibold small">Nome <span class="text-danger">*</span></label>
+              <input type="text" name="nome" id="input-edit-rubrica-nome"
+                     class="form-control form-control-sm" maxlength="200" required>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold small">Natureza do Recurso</label>
+              <select name="natureza" id="input-edit-rubrica-natureza"
+                      class="form-select form-select-sm">
+                <option value="">— Nenhuma —</option>
+                {% for n in naturezas_choices %}
+                  <option value="{{ n.pk }}">{{ n.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm fw-semibold"
+                  style="background:var(--orc-primary);color:#fff">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de edição de origem -->
+<div class="modal fade" id="modal-edit-origem" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-0">
+        <h6 class="modal-title fw-bold">
+          <i class="bi bi-pencil me-1" style="color:var(--orc-primary)"></i>Editar Origem
+        </h6>
+        <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" id="form-edit-origem" action="">
+        {% csrf_token %}
+        <div class="modal-body pt-2">
+          <label class="form-label fw-semibold small">Nome</label>
+          <input type="text" name="nome" id="input-edit-origem-nome"
+                 class="form-control modal-edit-input" maxlength="200" required>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm fw-semibold"
+                  style="background:var(--orc-primary);color:#fff">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de edição de situação da despesa -->
+<div class="modal fade" id="modal-edit-situacao-despesa" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-0">
+        <h6 class="modal-title fw-bold">
+          <i class="bi bi-pencil me-1" style="color:var(--orc-primary)"></i>Editar Situação
+        </h6>
+        <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" id="form-edit-situacao-despesa" action="">
+        {% csrf_token %}
+        <div class="modal-body pt-2">
+          <label class="form-label fw-semibold small">Nome</label>
+          <input type="text" name="nome" id="input-edit-situacao-nome"
+                 class="form-control modal-edit-input mb-3" maxlength="100" required>
+
+          <label class="form-label fw-semibold small">Visual</label>
+          <select name="badge" id="input-edit-situacao-badge" class="form-select form-select-sm mb-3">
+            <option value="bg-secondary">Cinza</option>
+            <option value="bg-warning text-dark">Amarelo</option>
+            <option value="bg-primary">Azul</option>
+            <option value="bg-success">Verde</option>
+            <option value="bg-danger">Vermelho</option>
+            <option value="bg-info text-dark">Azul claro</option>
+          </select>
+
+          <label class="form-check d-flex align-items-center gap-2 m-0 small">
+            <input type="checkbox" name="impacta_saldo" id="input-edit-situacao-impacta"
+                   class="form-check-input m-0">
+            Deduz do saldo do recurso
+          </label>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm fw-semibold"
+                  style="background:var(--orc-primary);color:#fff">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Preenche o modal de edição com os dados do item clicado
+document.getElementById('modal-edit-natureza').addEventListener('show.bs.modal', function (e) {
+  const btn  = e.relatedTarget;
+  const pk   = btn.dataset.pk;
+  const nome = btn.dataset.nome;
+  this.querySelector('#input-edit-natureza-nome').value = nome;
+  this.querySelector('#form-edit-natureza').action = `/orcamento/admin/cadastros/naturezas/${pk}/editar/`;
+});
+
+// Foco automático no input da modal
+document.getElementById('modal-edit-natureza').addEventListener('shown.bs.modal', function () {
+  this.querySelector('#input-edit-natureza-nome').focus();
+});
+
+// Modal de edição de rubrica
+document.getElementById('modal-edit-rubrica').addEventListener('show.bs.modal', function (e) {
+  const btn = e.relatedTarget;
+  this.querySelector('#input-edit-rubrica-codigo').value   = btn.dataset.codigo;
+  this.querySelector('#input-edit-rubrica-nome').value     = btn.dataset.nome;
+  this.querySelector('#input-edit-rubrica-natureza').value = btn.dataset.natureza;
+  this.querySelector('#form-edit-rubrica').action =
+    `/orcamento/admin/cadastros/rubricas/${btn.dataset.pk}/editar/`;
+});
+document.getElementById('modal-edit-rubrica').addEventListener('shown.bs.modal', function () {
+  this.querySelector('#input-edit-rubrica-nome').focus();
+});
+
+// Modal de edição de origem
+document.getElementById('modal-edit-origem').addEventListener('show.bs.modal', function (e) {
+  const btn = e.relatedTarget;
+  this.querySelector('#input-edit-origem-nome').value = btn.dataset.nome;
+  this.querySelector('#form-edit-origem').action =
+    `/orcamento/admin/cadastros/origens/${btn.dataset.pk}/editar/`;
+});
+document.getElementById('modal-edit-origem').addEventListener('shown.bs.modal', function () {
+  this.querySelector('#input-edit-origem-nome').focus();
+});
+
+// Modal de edição de situação da despesa
+document.getElementById('modal-edit-situacao-despesa').addEventListener('show.bs.modal', function (e) {
+  const btn = e.relatedTarget;
+  this.querySelector('#input-edit-situacao-nome').value = btn.dataset.nome;
+  this.querySelector('#input-edit-situacao-impacta').checked = btn.dataset.impactaSaldo === '1';
+  this.querySelector('#input-edit-situacao-badge').value = btn.dataset.badge || 'bg-secondary';
+  this.querySelector('#form-edit-situacao-despesa').action =
+    `/orcamento/admin/cadastros/situacoes-despesa/${btn.dataset.pk}/editar/`;
+});
+document.getElementById('modal-edit-situacao-despesa').addEventListener('shown.bs.modal', function () {
+  this.querySelector('#input-edit-situacao-nome').focus();
+});
+</script>
+{% endblock %}

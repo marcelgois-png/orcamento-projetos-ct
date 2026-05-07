@@ -1,0 +1,404 @@
+{% extends 'base_orcamento.html' %}
+{% block title %}{{ titulo_pagina }} — Execução Orçamentária{% endblock %}
+
+{% block extra_head %}
+<style>
+  .secao-titulo {
+    font-size: .72rem; font-weight: 700; letter-spacing: .05em;
+    text-transform: uppercase; color: #6c757d;
+    padding-bottom: .4rem; border-bottom: 1px solid #dee2e6;
+    margin-bottom: 1rem;
+  }
+  .perfil-cards { display: flex; flex-direction: column; gap: .5rem; }
+  .perfil-card {
+    display: flex; align-items: flex-start; gap: .75rem;
+    border: 1.5px solid #dee2e6; border-radius: .5rem;
+    padding: .65rem .9rem; cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .perfil-card:hover:not(.perfil-disabled) { border-color: var(--orc-accent); background: #fff8f6; }
+  .perfil-card.perfil-selected { border-color: var(--orc-primary); background: #fff3f0; }
+  .perfil-card.perfil-disabled {
+    opacity: .38; cursor: not-allowed; background: #f8f9fa; border-color: #e2e6ea;
+  }
+  .perfil-card input[type=radio] { margin-top: .15rem; flex-shrink: 0; accent-color: var(--orc-primary); }
+  .perfil-card .perfil-icon { font-size: 1.1rem; flex-shrink: 0; width: 1.4rem; text-align: center; }
+  .perfil-card .perfil-nome { font-size: .875rem; font-weight: 600; color: #212529; line-height: 1.3; }
+  .perfil-card .perfil-desc { font-size: .775rem; color: #6c757d; margin-top: .1rem; }
+  .perfil-card.perfil-disabled .perfil-nome { color: #adb5bd; }
+</style>
+{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb small">
+    <li class="breadcrumb-item"><a href="{% url 'orc_usuario_list' %}">Usuários</a></li>
+    <li class="breadcrumb-item active">{{ titulo_pagina }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex align-items-center mb-3">
+  <h4 class="fw-bold mb-0">
+    <i class="bi bi-person-gear me-2" style="color:var(--orc-primary)"></i>{{ titulo_pagina }}
+  </h4>
+</div>
+
+<div class="row">
+  <div class="col-md-9 col-lg-8">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+
+      <!-- Dados de acesso -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-2">
+          <span class="secao-titulo mb-0" style="border:none;padding:0">
+            <i class="bi bi-key me-1"></i>Dados de acesso
+          </span>
+        </div>
+        <div class="card-body pt-3">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-semibold">{{ form.username.label }} <span class="text-danger">*</span></label>
+              {{ form.username }}
+              {% for err in form.username.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+            </div>
+            {% if form.instance.pk %}
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">{{ form.senha.label }}</label>
+              {{ form.senha }}
+              <div class="form-text text-muted">{{ form.senha.help_text }}</div>
+              {% for err in form.senha.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">{{ form.senha2.label }}</label>
+              {{ form.senha2 }}
+              {% for err in form.senha2.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+            </div>
+            {% endif %}
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">{{ form.email.label }} <span class="text-danger">*</span></label>
+              {{ form.email }}
+              {% for err in form.email.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">{{ form.email2.label }} <span class="text-danger">*</span></label>
+              {{ form.email2 }}
+              {% for err in form.email2.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dados pessoais -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-2">
+          <span class="secao-titulo mb-0" style="border:none;padding:0">
+            <i class="bi bi-person me-1"></i>Dados pessoais
+          </span>
+        </div>
+        <div class="card-body pt-3">
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label class="form-label fw-semibold">{{ form.nome_completo.label }} <span class="text-danger">*</span></label>
+              {{ form.nome_completo }}
+              {% for err in form.nome_completo.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">{{ form.matricula.label }}</label>
+              {{ form.matricula }}
+              {% for err in form.matricula.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Setor -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-2">
+          <span class="secao-titulo mb-0" style="border:none;padding:0">
+            <i class="bi bi-building me-1"></i>Setor
+          </span>
+        </div>
+        <div class="card-body pt-3">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Filtrar por tipo</label>
+              <select id="filtro-tipo-setor" class="form-select form-select-sm">
+                <option value="">— Todos os tipos —</option>
+                {% for valor, label in tipo_setor_choices %}
+                  <option value="{{ valor }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-8">
+              <label class="form-label fw-semibold">Setor do Servidor <span class="text-danger">*</span></label>
+              {% with lot_val=form.setor.value|stringformat:"s" %}
+              <select name="setor" id="id_setor_lotacao" class="form-select" required>
+                <option value="">— Selecione o setor —</option>
+                {% for s in todos_setores %}
+                  <option value="{{ s.pk }}" data-tipo="{{ s.tipo }}"
+                          {% if s.pk|stringformat:"s" == lot_val %}selected{% endif %}>
+                    {{ s.nome }}{% if s.sigla %} ({{ s.sigla }}){% endif %}
+                  </option>
+                {% endfor %}
+              </select>
+              {% endwith %}
+              {% for err in form.setor.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+            </div>
+          </div>
+          <div id="setor-tipo-info" class="mt-2" style="display:none">
+            <span class="badge bg-secondary" id="setor-tipo-badge"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Foto -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-2">
+          <span class="secao-titulo mb-0" style="border:none;padding:0">
+            <i class="bi bi-image me-1"></i>Foto do usuário
+          </span>
+        </div>
+        <div class="card-body pt-3">
+          <div class="row g-3 align-items-start">
+            <div class="col-auto">
+              <div id="foto-preview-wrap"
+                   style="width:88px;height:88px;border-radius:50%;overflow:hidden;
+                          background:#e9ecef;display:flex;align-items:center;justify-content:center;
+                          border:2px solid #dee2e6;">
+                {% if perfil.foto %}
+                  <img id="foto-preview" src="{{ perfil.foto.url }}"
+                       style="width:100%;height:100%;object-fit:cover;">
+                {% else %}
+                  <img id="foto-preview" src="" style="width:100%;height:100%;object-fit:cover;display:none;">
+                  <i class="bi bi-person-fill" id="foto-icon" style="font-size:2.8rem;color:#adb5bd;"></i>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col">
+              <label class="form-label fw-semibold">{{ form.foto.label }}</label>
+              {{ form.foto }}
+              <div class="form-text text-muted">{{ form.foto.help_text }}</div>
+              <div id="foto-erro" class="text-danger small mt-1" style="display:none"></div>
+              {% for err in form.foto.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Permissões -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-2">
+          <span class="secao-titulo mb-0" style="border:none;padding:0">
+            <i class="bi bi-shield-check me-1"></i>Permissões <span class="text-danger">*</span>
+          </span>
+        </div>
+        <div class="card-body pt-3">
+          <p class="form-text text-muted mb-3" id="perfil-tipo-hint">
+            Selecione o setor do servidor para ver os perfis disponíveis.
+          </p>
+          {% for err in form.perfil_tipo.errors %}<div class="text-danger small mb-2"><i class="bi bi-exclamation-triangle me-1"></i>{{ err }}</div>{% endfor %}
+          <div class="perfil-cards" id="perfil-cards-wrap">
+
+            <label class="perfil-card" data-perfil="admin">
+              <input type="radio" name="perfil_tipo" value="admin"
+                     {% if form.perfil_tipo.value == 'admin' %}checked{% endif %}>
+              <span class="perfil-icon text-dark"><i class="bi bi-stars"></i></span>
+              <span>
+                <div class="perfil-nome">Administrador do Sistema</div>
+                <div class="perfil-desc">Acesso total a todos os módulos — gerencia usuários, setores, IRPs e orçamento.</div>
+              </span>
+            </label>
+
+            <label class="perfil-card" data-perfil="gestor_financeiro">
+              <input type="radio" name="perfil_tipo" value="gestor_financeiro"
+                     {% if form.perfil_tipo.value == 'gestor_financeiro' %}checked{% endif %}>
+              <span class="perfil-icon" style="color:var(--orc-primary)"><i class="bi bi-cash-coin"></i></span>
+              <span>
+                <div class="perfil-nome">Gestor Financeiro</div>
+                <div class="perfil-desc">Acesso completo ao módulo de Execução Orçamentária — registra recursos, despesas e transferências.</div>
+              </span>
+            </label>
+
+            <label class="perfil-card" data-perfil="ordenador_despesa">
+              <input type="radio" name="perfil_tipo" value="ordenador_despesa"
+                     {% if form.perfil_tipo.value == 'ordenador_despesa' %}checked{% endif %}>
+              <span class="perfil-icon text-warning"><i class="bi bi-pen-fill"></i></span>
+              <span>
+                <div class="perfil-nome">Ordenador de Despesa</div>
+                <div class="perfil-desc">Autoriza transferências orçamentárias entre setores. Acesso de leitura ao módulo.</div>
+              </span>
+            </label>
+
+            <label class="perfil-card" data-perfil="gestor_irp">
+              <input type="radio" name="perfil_tipo" value="gestor_irp"
+                     {% if form.perfil_tipo.value == 'gestor_irp' %}checked{% endif %}>
+              <span class="perfil-icon text-primary"><i class="bi bi-clipboard2-data"></i></span>
+              <span>
+                <div class="perfil-nome">Assessor de Planejamento</div>
+                <div class="perfil-desc">Cria e gerencia IRPs, itens e acompanha os resultados no módulo IRP.</div>
+              </span>
+            </label>
+
+            <label class="perfil-card" data-perfil="diretor_centro">
+              <input type="radio" name="perfil_tipo" value="diretor_centro"
+                     {% if form.perfil_tipo.value == 'diretor_centro' %}checked{% endif %}>
+              <span class="perfil-icon text-dark"><i class="bi bi-person-badge-fill"></i></span>
+              <span>
+                <div class="perfil-nome">Diretor de Centro</div>
+                <div class="perfil-desc">Mesmas funções do Assessor, com autoridade para homologar setores administrativos.</div>
+              </span>
+            </label>
+
+            <label class="perfil-card" data-perfil="aprovador_setor">
+              <input type="radio" name="perfil_tipo" value="aprovador_setor"
+                     {% if form.perfil_tipo.value == 'aprovador_setor' %}checked{% endif %}>
+              <span class="perfil-icon text-success"><i class="bi bi-check2-circle"></i></span>
+              <span>
+                <div class="perfil-nome">Chefia Setorial</div>
+                <div class="perfil-desc">Homologa as intenções de consumo vinculadas ao seu setor ou departamento.</div>
+              </span>
+            </label>
+
+            <label class="perfil-card" data-perfil="respondente">
+              <input type="radio" name="perfil_tipo" value="respondente"
+                     {% if form.perfil_tipo.value == 'respondente' %}checked{% endif %}>
+              <span class="perfil-icon text-secondary"><i class="bi bi-pencil-square"></i></span>
+              <span>
+                <div class="perfil-nome">Respondente</div>
+                <div class="perfil-desc">Preenche as necessidades do seu setor nas IRPs abertas.</div>
+              </span>
+            </label>
+
+          </div>
+          {% for err in form.perfil_tipo.errors %}<div class="text-danger small mt-2">{{ err }}</div>{% endfor %}
+        </div>
+      </div>
+
+      <!-- Ações -->
+      <div class="d-flex gap-2 align-items-center pb-2">
+        <button type="submit" class="btn fw-semibold"
+                style="background:var(--orc-primary);color:#fff">
+          <i class="bi bi-save me-1"></i>Salvar
+        </button>
+        <a href="{% url 'orc_usuario_list' %}" class="btn btn-outline-secondary">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  /* ── Foto preview ── */
+  const inputFoto = document.getElementById('input-foto') || document.querySelector('input[type=file][name=foto]');
+  const preview   = document.getElementById('foto-preview');
+  const icon      = document.getElementById('foto-icon');
+  const erroFoto  = document.getElementById('foto-erro');
+  const MAX       = 10 * 1024 * 1024;
+
+  if (inputFoto) {
+    inputFoto.addEventListener('change', function () {
+      erroFoto.style.display = 'none';
+      const file = this.files[0];
+      if (!file) return;
+      if (file.size > MAX) {
+        erroFoto.textContent   = 'O arquivo excede 10 MB. Escolha uma imagem menor.';
+        erroFoto.style.display = '';
+        this.value = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = e => {
+        preview.src           = e.target.result;
+        preview.style.display = '';
+        if (icon) icon.style.display = 'none';
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /* ── Setor + perfil ── */
+  const PERFIL_POR_TIPO = {{ perfil_por_tipo_json|safe }};
+  const TIPO_LABELS = {
+    'centro':         'Centro',
+    'direcao':        'Direção de Centro',
+    'administrativo': 'Setor Administrativo',
+    'departamento':   'Departamento',
+    'coordenacao_g':  'Coordenação de Curso',
+    'coordenacao_pg': 'Pós-Graduação',
+    'laboratorio':    'Laboratório',
+    'secretaria':     'Secretaria de Departamento',
+  };
+
+  const selSetor   = document.getElementById('id_setor_lotacao');
+  const filtroTipo = document.getElementById('filtro-tipo-setor');
+  const hintEl     = document.getElementById('perfil-tipo-hint');
+  const tipoBadge  = document.getElementById('setor-tipo-badge');
+  const tipoInfo   = document.getElementById('setor-tipo-info');
+  const cards      = document.querySelectorAll('.perfil-card');
+
+  if (filtroTipo && selSetor) {
+    filtroTipo.addEventListener('change', function () {
+      const tipoFiltro = this.value;
+      const valorAtual = selSetor.value;
+      let encontrou = false;
+      Array.from(selSetor.options).forEach(opt => {
+        if (!opt.value) return;
+        const match = !tipoFiltro || opt.dataset.tipo === tipoFiltro;
+        opt.hidden = !match;
+        if (opt.value === valorAtual && match) encontrou = true;
+      });
+      if (!encontrou) selSetor.value = '';
+      atualizarPerfis();
+    });
+  }
+
+  function tipoAtual() {
+    const opt = selSetor && selSetor.value ? selSetor.options[selSetor.selectedIndex] : null;
+    return opt ? opt.dataset.tipo || '' : '';
+  }
+
+  function atualizarPerfis() {
+    const tipo      = tipoAtual();
+    const permitidos = tipo ? (PERFIL_POR_TIPO[tipo] || []) : null;
+
+    if (tipoInfo && tipoBadge) {
+      if (tipo) { tipoBadge.textContent = TIPO_LABELS[tipo] || tipo; tipoInfo.style.display = ''; }
+      else { tipoInfo.style.display = 'none'; }
+    }
+    if (hintEl) {
+      hintEl.textContent = !tipo
+        ? 'Selecione o setor do servidor para ver os perfis disponíveis.'
+        : `Perfis compatíveis com "${TIPO_LABELS[tipo] || tipo}":`;
+    }
+
+    cards.forEach(card => {
+      const perfil = card.dataset.perfil;
+      const radio  = card.querySelector('input[type=radio]');
+      const ok     = permitidos === null || permitidos.includes(perfil);
+      card.classList.toggle('perfil-disabled', !ok);
+      if (radio) radio.disabled = !ok;
+      if (!ok && radio && radio.checked) { radio.checked = false; card.classList.remove('perfil-selected'); }
+    });
+    atualizarSelected();
+  }
+
+  function atualizarSelected() {
+    cards.forEach(card => {
+      const radio = card.querySelector('input[type=radio]');
+      card.classList.toggle('perfil-selected', radio && radio.checked);
+    });
+  }
+
+  cards.forEach(card => {
+    const radio = card.querySelector('input[type=radio]');
+    if (radio) radio.addEventListener('change', atualizarSelected);
+  });
+
+  if (selSetor) selSetor.addEventListener('change', atualizarPerfis);
+  atualizarPerfis();
+})();
+</script>
+{% endblock %}

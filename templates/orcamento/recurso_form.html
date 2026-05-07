@@ -1,0 +1,132 @@
+{% extends 'base_orcamento.html' %}
+
+{% block title %}{% if object %}Editar Recurso{% else %}Novo Recurso{% endif %} — Execução Orçamentária{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-3">
+  <a href="{% url 'recurso_list' %}" class="btn btn-sm btn-light">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h5 class="mb-0 fw-bold">{% if object %}Editar Recurso Orçamentário{% else %}Novo Recurso Orçamentário{% endif %}</h5>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-4">
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      <div class="row g-3">
+
+        <!-- Linha 1: Ano | Setor | Origem -->
+        <div class="col-4">
+          <label class="form-label small fw-semibold">Ano Fiscal <span class="text-danger">*</span></label>
+          {{ form.ano_fiscal }}
+          {% if form.ano_fiscal.errors %}<div class="text-danger small mt-1">{{ form.ano_fiscal.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-4">
+          <label class="form-label small fw-semibold">Setor</label>
+          {{ form.setor }}
+          {% if form.setor.errors %}<div class="text-danger small mt-1">{{ form.setor.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-4">
+          <label class="form-label small fw-semibold">Origem do Recurso <span class="text-danger">*</span></label>
+          {{ form.origem_recurso }}
+          {% if form.origem_recurso.errors %}<div class="text-danger small mt-1">{{ form.origem_recurso.errors.0 }}</div>{% endif %}
+        </div>
+
+        <!-- Linha 2: Natureza | Rubrica | Valor -->
+        <div class="col-4">
+          <label class="form-label small fw-semibold">Natureza <span class="text-danger">*</span></label>
+          {{ form.natureza }}
+          {% if form.natureza.errors %}<div class="text-danger small mt-1">{{ form.natureza.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-4">
+          <label class="form-label small fw-semibold">Rubrica <span class="text-danger">*</span></label>
+          {{ form.rubrica }}
+          {% if form.rubrica.errors %}<div class="text-danger small mt-1">{{ form.rubrica.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-4">
+          <label class="form-label small fw-semibold">Valor Orçamentário (R$) <span class="text-danger">*</span></label>
+          {{ form.valor_orcamentario }}
+          {% if form.valor_orcamentario.errors %}<div class="text-danger small mt-1">{{ form.valor_orcamentario.errors.0 }}</div>{% endif %}
+        </div>
+
+        <!-- Linha 3: Observações -->
+        <div class="col-12">
+          <label class="form-label small fw-semibold">Observações Diversas</label>
+          {{ form.observacoes }}
+          {% if form.observacoes.errors %}<div class="text-danger small mt-1">{{ form.observacoes.errors.0 }}</div>{% endif %}
+        </div>
+
+      </div>
+
+      {% if form.non_field_errors %}
+      <div class="alert alert-danger small mt-3">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <div class="d-flex gap-2 mt-4">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-check-lg me-1"></i>{% if object %}Salvar alterações{% else %}Criar recurso{% endif %}
+        </button>
+        <a href="{% url 'recurso_list' %}" class="btn btn-light">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Mapeamento Natureza → Rubricas (do cadastro)
+const RUBRICA_MAP = {{ rubrica_map_json|safe }};
+
+// Inicializa Tom Select em todos os selects do formulário
+document.querySelectorAll('select').forEach(el => {
+  if (!el.tomselect) {
+    new TomSelect(el, { allowEmptyOption: true });
+  }
+});
+
+// Tom Select armazena instância em element.tomselect
+const elNat = document.querySelector('#id_natureza');
+const elRub = document.querySelector('#id_rubrica');
+const tsNat = elNat?.tomselect;
+const tsRub = elRub?.tomselect;
+
+if (tsNat && tsRub) {
+  // Guarda todas as opções originais de rubrica (incluindo opção vazia)
+  const allRubricas = Object.values(tsRub.options).map(o => ({value: o.value, text: o.text}));
+
+  function filtrarRubricas() {
+    const natSel = tsNat.getValue();
+    const rubAtual = tsRub.getValue();
+
+    tsRub.clearOptions();
+
+    if (!natSel) {
+      // Sem natureza: restaura todas as rubricas
+      allRubricas.forEach(o => tsRub.addOption({value: o.value, text: o.text}));
+    } else {
+      const permitidas = new Set((RUBRICA_MAP[natSel] || []).map(r => r.toLowerCase()));
+      allRubricas.forEach(o => {
+        // Mantém a opção vazia ("— Selecione —") e as rubricas da natureza escolhida
+        if (!o.value || permitidas.has(o.value.toLowerCase()))
+          tsRub.addOption({value: o.value, text: o.text});
+      });
+      // Limpa rubrica atual se não pertence à natureza escolhida
+      if (rubAtual && !permitidas.has(rubAtual.toLowerCase())) {
+        tsRub.setValue('', true);
+      }
+    }
+
+    tsRub.refreshOptions(false);
+  }
+
+  tsNat.on('change', filtrarRubricas);
+
+  // Aplica filtro se já houver natureza pré-selecionada (modo edição)
+  if (tsNat.getValue()) filtrarRubricas();
+}
+</script>
+{% endblock %}

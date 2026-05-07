@@ -1,0 +1,62 @@
+{% extends 'base_orcamento.html' %}
+{% load humanize %}
+
+{% block title %}Licitações IRP — Referência{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+  <h4 class="mb-0 fw-bold">Licitações IRP — Pregões</h4>
+  <small class="text-muted">Pregões do módulo IRP disponíveis como referência para despesas</small>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0 small align-middle">
+        <thead class="table-dark">
+          <tr>
+            <th class="px-3">Nº Pregão</th>
+            <th>IRP</th>
+            <th>Setor</th>
+            <th>Status</th>
+            <th>Homologação</th>
+            <th class="px-3">Ação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in pregoes %}
+          <tr>
+            <td class="px-3 fw-semibold">{{ p.numero|default:"s/n" }}</td>
+            <td>{{ p.irp|truncatechars:60 }}</td>
+            <td>{{ p.irp.setor.sigla|default:"-" }}</td>
+            <td>
+              <span class="badge rounded-pill
+                {% if p.status == 'homologado' %}bg-success
+                {% elif p.status == 'em_licitacao' %}bg-warning text-dark
+                {% else %}bg-secondary{% endif %}">
+                {{ p.get_status_display }}
+              </span>
+            </td>
+            <td>{{ p.data_homologacao|date:"d/m/Y"|default:"—" }}</td>
+            <td class="px-3">
+              <a href="{% url 'despesa_create' %}?pregao={{ p.pk }}" class="btn btn-xs btn-outline-primary" title="Usar como referência">
+                <i class="bi bi-link-45deg me-1"></i>Vincular despesa
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="text-center text-muted py-4">
+              <i class="bi bi-inbox fs-4 d-block mb-2 opacity-25"></i>
+              Nenhum pregão encontrado no módulo IRP.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<style>.btn-xs { padding: 2px 6px; font-size: .75rem; }</style>
+{% endblock %}

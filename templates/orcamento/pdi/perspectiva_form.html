@@ -1,0 +1,40 @@
+{% extends 'base_orcamento.html' %}
+
+{% block title %}{% if object %}Editar Perspectiva{% else %}Nova Perspectiva{% endif %} — PDI{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-5">
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <a href="{% url 'pdi_perspectiva_list' %}" class="btn btn-sm btn-light"><i class="bi bi-arrow-left"></i></a>
+      <h5 class="mb-0 fw-bold">{% if object %}Editar Perspectiva{% else %}Nova Perspectiva PDI{% endif %}</h5>
+    </div>
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-4">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Código</label>
+            {{ form.codigo }}
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Nome <span class="text-danger">*</span></label>
+            {{ form.nome }}
+            {% if form.nome.errors %}<div class="text-danger small mt-1">{{ form.nome.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Ordem</label>
+            {{ form.ordem }}
+          </div>
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-lg me-1"></i>Salvar
+            </button>
+            <a href="{% url 'pdi_perspectiva_list' %}" class="btn btn-light">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

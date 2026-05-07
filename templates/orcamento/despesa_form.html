@@ -1,0 +1,1233 @@
+{% extends 'base_orcamento.html' %}
+
+{% block title %}{% if object %}Editar Despesa{% else %}Nova Despesa{% endif %} — Execução Orçamentária{% endblock %}
+
+{% block extra_head %}
+<style>
+:root {
+  --desp-row-height: 48px;
+  --desp-field-height: 34px;
+}
+.panel-card {
+  background: #fff;
+  border: 0;
+  border-radius: .375rem;
+  box-shadow: 0 .125rem .25rem rgba(0,0,0,.075);
+}
+.panel-header { border-radius: .375rem .375rem 0 0; }
+.itens-despesa-table .val-readonly { font-size:.82rem; }
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: .65rem .9rem;
+  border-bottom: 1px solid #e9ecef;
+  background: #fff;
+}
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.panel-header .icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+}
+.panel-body { padding: .75rem .9rem; }
+.panel-title h6 {
+  font-size: .82rem !important;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.panel-title small { font-size: .72rem !important; }
+
+/* ── Grade de recursos ── */
+.res-rows {
+  display: grid;
+  gap: .55rem;
+}
+.res-line {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .75rem;
+  align-items: end;
+  border-bottom: 1px solid #f0f2f5;
+  padding-bottom: .55rem;
+}
+.res-line:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.res-field { min-width: 0; }
+.res-label {
+  display: block;
+  font-size: .72rem;
+  font-weight: 700;
+  color: #6c757d;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+  margin-bottom: .2rem;
+  white-space: nowrap;
+}
+.res-line select,
+.res-line .ts-wrapper { width: 100%; }
+.res-line .ts-control { min-height: var(--desp-field-height); font-size: .82rem; }
+
+.res-saldo {
+  display: flex;
+  align-items: center;
+  min-height: var(--desp-field-height);
+  padding: .3rem .55rem;
+  border: 1px solid #dee2e6;
+  border-radius: .375rem;
+  background: #fff;
+  font-size: .82rem;
+  font-weight: 700;
+  color: #212529;
+}
+.res-saldo.is-negative { color: #dc3545; }
+.res-saldo.is-positive { color: #198754; }
+
+.desp-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.despesa-form-page {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+.despesa-form-page .panel-card {
+  width: 100%;
+}
+.despesa-hidden-fields {
+  display: none;
+}
+.despesa-grid-geral {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .75rem;
+  align-items: end;
+}
+.pdi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.desp-field { min-width: 0; }
+.desp-field-full { grid-column: 1 / -1; }
+.despesa-form-page .form-label {
+  color: #17212f;
+  font-size: .78rem;
+  font-weight: 700;
+  margin-bottom: .3rem;
+}
+.despesa-form-page .form-control,
+.despesa-form-page .form-select {
+  min-height: 34px;
+  padding: .3rem .55rem;
+  font-size: .82rem;
+}
+.despesa-form-page .ts-control {
+  min-height: 34px;
+  padding: .3rem .55rem;
+  font-size: .82rem;
+}
+.despesa-form-page textarea.form-control { min-height: 72px; }
+.licitacao-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.4fr) minmax(180px, .7fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+.licitacao-table,
+.itens-despesa-table {
+  table-layout: fixed;
+  width: 100%;
+}
+.licitacao-table th,
+.licitacao-table td,
+.itens-despesa-table th,
+.itens-despesa-table td {
+  font-size: .72rem;
+  vertical-align: middle;
+}
+.licitacao-table thead th,
+.itens-despesa-table thead th {
+  background-color: #f8f9fa !important;
+  border-bottom: 2px solid #dee2e6 !important;
+  color: #495057;
+  font-size: .6rem !important;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+.licitacao-table tbody td,
+.itens-despesa-table tbody td {
+  border-bottom: 1px solid #eee;
+  padding: .45rem .4rem;
+}
+.licitacao-material {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.despesa-total-box {
+  border: 1px solid #dee2e6;
+  border-radius: .375rem;
+  padding: .45rem .75rem;
+  background: #fff;
+  min-width: 210px;
+}
+.despesa-total-value {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #17212f;
+}
+.linha-vazia {
+  color: #6c757d;
+  padding: 18px;
+  text-align: center;
+}
+@media (max-width: 991.98px) {
+  .despesa-grid-geral,
+  .pdi-grid,
+  .licitacao-toolbar,
+  .res-line {
+    grid-template-columns: 1fr;
+  }
+}
+.pdi-inline-panel {
+  background: #f0faf4;
+  border-top: 2px solid #198754;
+  padding: .75rem 1rem;
+}
+.pdi-inline-panel .form-select {
+  font-size: .78rem;
+  min-height: 30px;
+  padding: .2rem .5rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="despesa-form-page">
+<div class="desp-page-header mb-3">
+  <div class="d-flex align-items-center gap-2">
+    <a href="{% url 'despesa_list' %}" class="btn btn-sm btn-light"><i class="bi bi-arrow-left"></i></a>
+    <div>
+      <h5 class="mb-0 fw-bold">{% if object %}Editar Despesa{% else %}Nova Despesa{% endif %}</h5>
+      <small class="text-muted">Execução Orçamentária</small>
+    </div>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <button type="submit" form="despesa-form" class="btn btn-primary btn-sm px-4">
+      <i class="bi bi-check-lg me-1"></i>{% if object %}Salvar alterações{% else %}Registrar despesa{% endif %}
+    </button>
+    <a href="{% url 'despesa_list' %}" class="btn btn-light btn-sm px-4">Cancelar</a>
+  </div>
+</div>
+
+<form id="despesa-form" method="post" novalidate>
+  {% csrf_token %}
+  <input type="hidden" name="despesa_itens_json" id="despesa-itens-json" value="{{ request.POST.despesa_itens_json|default:''|escape }}">
+
+  <!-- Campo oculto: recurso selecionado -->
+  <div class="d-none">{{ form.recurso }}</div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       BLOCO 1 — RECURSO ORÇAMENTÁRIO
+  ═══════════════════════════════════════════════════════════════ -->
+  <div class="panel-card mb-3">
+    <div class="panel-header">
+      <div class="panel-title">
+        <span class="icon" style="background:#e8f0fe;color:#3b5bdb"><i class="bi bi-wallet2"></i></span>
+        <div>
+          <h6 class="mb-0 fw-bold" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">Recurso utilizado</h6>
+          <small class="text-muted" style="font-size:.72rem;">Selecione o recurso que será debitado</small>
+        </div>
+      </div>
+      <div class="ms-auto d-flex gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="limparRecurso()">
+          <i class="bi bi-x-circle me-1"></i>Limpar
+        </button>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="res-rows">
+        <div class="res-line">
+          <div class="res-field">
+            <label class="res-label">Setor</label>
+            <select class="form-select form-select-sm recurso-choice" data-field="setor"></select>
+          </div>
+          <div class="res-field">
+            <label class="res-label">Origem do Recurso</label>
+            <select class="form-select form-select-sm recurso-choice" data-field="origem_recurso"></select>
+          </div>
+        </div>
+
+        <div class="res-line">
+          <div class="res-field">
+            <label class="res-label">Natureza</label>
+            <select class="form-select form-select-sm recurso-choice" data-field="natureza"></select>
+          </div>
+          <div class="res-field">
+            <label class="res-label">Rubrica</label>
+            <select class="form-select form-select-sm recurso-choice" data-field="rubrica"></select>
+          </div>
+        </div>
+
+        <div class="res-line">
+          <div class="res-field">
+            <label class="res-label">Saldo Atual</label>
+            <span class="res-saldo" id="res-saldo-atual">—</span>
+          </div>
+          <div class="res-field">
+            <label class="res-label">Saldo Após</label>
+            <span class="res-saldo" id="res-saldo-apos">—</span>
+          </div>
+        </div>
+      </div>
+
+      {% if form.recurso.errors %}
+      <div class="text-danger small py-2">{{ form.recurso.errors.0 }}</div>
+      {% endif %}
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       BLOCO 2 — DESPESA
+  ═══════════════════════════════════════════════════════════════ -->
+  <div class="panel-card mb-3">
+    <div class="panel-header">
+      <div class="panel-title">
+        <span class="icon" style="background:#fff1f0;color:#c6543c"><i class="bi bi-receipt"></i></span>
+        <div>
+          <h6 class="mb-0 fw-bold" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">Despesa</h6>
+          <small class="text-muted" style="font-size:.72rem;">Dados do comprometimento orçamentário</small>
+        </div>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="despesa-grid-geral">
+
+        <div class="desp-field">
+          <label class="form-label small fw-semibold">Data da Despesa <span class="text-danger">*</span></label>
+          {{ form.data_despesa }}
+          {% if form.data_despesa.errors %}<div class="text-danger small mt-1">{{ form.data_despesa.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="desp-field">
+          <label class="form-label small fw-semibold">Situação <span class="text-danger">*</span></label>
+          {{ form.situacao }}
+          {% if form.situacao.errors %}<div class="text-danger small mt-1">{{ form.situacao.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-sm-3 d-none">
+          <label class="form-label small fw-semibold">Categoria do Material</label>
+          {{ form.categoria_material }}
+        </div>
+        <div class="desp-field">
+          <label class="form-label small fw-semibold">Requisição</label>
+          {{ form.requisicao }}
+        </div>
+
+        <div class="desp-field">
+          <label class="form-label small fw-semibold">Nota de Empenho</label>
+          {{ form.nota_empenho }}
+        </div>
+        <div class="col-sm-4 d-none">
+          <label class="form-label small fw-semibold">Pregão (referência externa)</label>
+          {{ form.pregao_ref }}
+        </div>
+        <div class="col-sm-4 d-none">
+          <label class="form-label small fw-semibold">Licitação IRP (vínculo)</label>
+          {{ form.pregao }}
+          {% if form.pregao.errors %}<div class="text-danger small mt-1">{{ form.pregao.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-sm-4 d-none">
+          <label class="form-label small fw-semibold">Registro de Preço Vigente</label>
+          {{ form.registro_preco_item }}
+          {% if form.registro_preco_item.errors %}<div class="text-danger small mt-1">{{ form.registro_preco_item.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="col-12 d-none">
+          <label class="form-label small fw-semibold">Discriminação do Item <span class="text-danger">*</span></label>
+          {{ form.discriminacao }}
+          {% if form.discriminacao.errors %}<div class="text-danger small mt-1">{{ form.discriminacao.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="col-sm-4 d-none">
+          <label class="form-label small fw-semibold">Quantidade <span class="text-danger">*</span></label>
+          {{ form.quantidade }}
+        </div>
+        <div class="col-sm-4 d-none">
+          <label class="form-label small fw-semibold">Valor Unitário (R$)</label>
+          {{ form.valor_unitario }}
+        </div>
+        <div class="col-sm-4 d-none">
+          <label class="form-label small fw-semibold">Valor Comprometido (R$) <span class="text-danger">*</span></label>
+          {{ form.valor_comprometido }}
+          {% if form.valor_comprometido.errors %}<div class="text-danger small mt-1">{{ form.valor_comprometido.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="desp-field desp-field-full">
+          <label class="form-label small fw-semibold">Observação</label>
+          {{ form.observacao }}
+        </div>
+
+        <div class="desp-field desp-field-full">
+          <!-- Total da despesa — sempre visível -->
+          <div class="d-flex justify-content-end mb-2">
+            <div class="despesa-total-box text-end">
+              <div class="text-muted small">Total da despesa</div>
+              <div class="despesa-total-value" id="despesa-total">R$ 0,00</div>
+            </div>
+          </div>
+
+          <!-- ── MODO MATERIAL: licitações compatíveis ── -->
+          <div id="secao-licitacoes">
+            <div class="mb-2">
+              <div class="fw-bold small text-uppercase" style="letter-spacing:.04em">Licitações compatíveis</div>
+              <small class="text-muted">A lista abaixo é filtrada pela natureza e rubrica do recurso utilizado.</small>
+            </div>
+
+            <div class="licitacao-toolbar mb-2">
+              <div>
+                <label class="form-label small fw-semibold">Filtrar itens</label>
+                <input type="search" id="licitacao-busca" class="form-control form-control-sm" placeholder="Pregão, item, material ou rubrica">
+              </div>
+              <div>
+                <label class="form-label small fw-semibold">Situação</label>
+                <select id="licitacao-situacao" class="form-select form-select-sm">
+                  <option value="">Vigentes e a vencer</option>
+                  <option value="vigente">Somente vigentes</option>
+                  <option value="a_vencer">A vencer</option>
+                  <option value="sem_validade">Sem validade</option>
+                  <option value="todos">Todas, exceto incompatíveis</option>
+                </select>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-atualizar-licitacoes">
+                <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
+              </button>
+            </div>
+
+            <div class="border rounded mb-3">
+              <table class="table table-hover mb-0 orc-list-table licitacao-table">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width:10%">Pregão</th>
+                    <th style="width:5%">Item</th>
+                    <th style="width:18%">Descr. Licitada</th>
+                    <th style="width:22%">Descrição do Bem ou Serviço</th>
+                    <th style="width:14%">Rubrica</th>
+                    <th style="width:6%" class="text-center">Unid.</th>
+                    <th style="width:10%" class="text-end">Saldo disp.</th>
+                    <th style="width:11%" class="text-end">Valor Unit.</th>
+                    <th style="width:4%" class="text-center"></th>
+                  </tr>
+                </thead>
+                <tbody id="licitacao-tbody">
+                  <tr><td colspan="9" class="linha-vazia">Selecione o recurso utilizado para listar as licitações compatíveis.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div><!-- /secao-licitacoes -->
+
+          <!-- ── MODO MATERIAL: itens adicionados da licitação ── -->
+          <div id="secao-itens-material">
+            <div class="fw-bold small text-uppercase mb-2" style="letter-spacing:.04em">Itens adicionados à despesa</div>
+            <div class="border rounded">
+              <table class="table table-hover mb-0 orc-list-table itens-despesa-table">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width:10%">Pregão</th>
+                    <th style="width:5%">Item</th>
+                    <th style="width:23%">Descrição do Bem ou Serviço</th>
+                    <th style="width:11%">Rubrica</th>
+                    <th style="width:8%" class="text-end">Saldo disp.</th>
+                    <th style="width:7%" class="text-end">Qtd.</th>
+                    <th style="width:11%" class="text-end">Valor Unit.</th>
+                    <th style="width:11%" class="text-end">Total</th>
+                    <th style="width:14%" class="text-center"></th>
+                  </tr>
+                </thead>
+                <tbody id="despesa-itens-tbody">
+                  <tr><td colspan="9" class="linha-vazia">Nenhum item adicionado.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div><!-- /secao-itens-material -->
+
+          <!-- ── MODO LIVRE: bens e serviços de entrada livre ── -->
+          <div id="secao-itens-livres" style="display:none">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <div>
+                <div class="fw-bold small text-uppercase" style="letter-spacing:.04em">Itens da Despesa</div>
+                <small class="text-muted">Descreva os bens ou serviços contratados.</small>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="adicionarItemLivre()">
+                <i class="bi bi-plus-lg me-1"></i>Adicionar item
+              </button>
+            </div>
+            <div class="border rounded">
+              <table class="table table-hover mb-0 orc-list-table" style="table-layout:fixed;width:100%">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width:38%">Descrição do Bem ou Serviço</th>
+                    <th style="width:18%">Rubrica</th>
+                    <th style="width:7%" class="text-end">Qtd.</th>
+                    <th style="width:13%" class="text-end">Valor Unit.</th>
+                    <th style="width:12%" class="text-end">Total</th>
+                    <th style="width:12%" class="text-center"></th>
+                  </tr>
+                </thead>
+                <tbody id="livres-tbody">
+                  <tr><td colspan="6" class="linha-vazia">Selecione o recurso e clique em "+ Adicionar item".</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div><!-- /secao-itens-livres -->
+
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  {% if form.non_field_errors %}
+  <div class="alert alert-danger small">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+</form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ── Dados do servidor ─────────────────────────────────────────────────────────
+const despesaRecursos  = {{ recursos_json|default:'[]'|safe }};
+const licitacaoItens   = {{ licitacao_itens_json|default:'[]'|safe }};
+const recursosPorId    = new Map(despesaRecursos.map(r => [String(r.id), r]));
+const licitacaoPorId   = new Map(licitacaoItens.map(i => [String(i.id), i]));
+const despesaEditando  = {% if object %}true{% else %}false{% endif %};
+const _itensIniciais   = {% if object %}{{ itens_iniciais_json|default:'[]'|safe }}{% else %}[]{% endif %};
+let itensDespesa  = _itensIniciais.filter(r => !r.is_livre);
+let itensLivres   = _itensIniciais.filter(r => !!r.is_livre);
+let _livreCounter = itensLivres.length ? 1 : 0;
+let pdiPanelAberto    = null;
+let modoLivre         = false;
+
+function isRubricaMaterial(recurso) {
+  if (!recurso) return true;
+  const rb = (recurso.rubrica || '').toLowerCase();
+  return rb.includes('consumo') || rb.includes('permanente');
+}
+
+function encontrarLinhaItem(id) {
+  return itensDespesa.find(r => String(r.registro_preco_item) === id)
+      || itensLivres.find(r => String(r.id) === id);
+}
+
+function renderizarItensAtivos() {
+  if (modoLivre) renderizarItensLivres();
+  else renderizarItensDespesa();
+}
+
+function totalItemLivre(row) {
+  return numeroPt(row.quantidade) * numeroPt(row.valor_unitario);
+}
+
+const pdiData     = {{ pdi_json|default:'[]'|safe }};
+const pdiPerspMap = new Map(pdiData.map(p => [p.id, p]));
+const pdiObjMap   = new Map();
+const pdiIndMap   = new Map();
+pdiData.forEach(p => p.objetivos.forEach(o => {
+  pdiObjMap.set(o.id, o);
+  o.indicadores.forEach(i => pdiIndMap.set(i.id, i));
+}));
+
+const camposRecurso   = ['setor', 'origem_recurso', 'natureza', 'rubrica'];
+const estado          = {};
+const controles       = {};
+let atualizando       = false;
+
+camposRecurso.forEach(c => { estado[c] = ''; });
+
+// ── Rótulo de setor ───────────────────────────────────────────────────────────
+const SETOR_LABELS = {};
+despesaRecursos.forEach(r => {
+  if (r.setor && r.setor_label) SETOR_LABELS[String(r.setor)] = r.setor_label;
+});
+const CAMPO_LABELS = { setor: SETOR_LABELS };
+
+// ── TomSelect ─────────────────────────────────────────────────────────────────
+document.querySelectorAll('select.recurso-choice').forEach(el => {
+  const campo = el.dataset.field;
+  controles[campo] = new TomSelect(el, {
+    allowEmptyOption: true, placeholder: 'Selecione', searchField: ['text'], maxOptions: 500,
+    dropdownParent: 'body',
+  });
+  controles[campo].on('change', value => {
+    if (atualizando) return;
+    estado[campo] = value || '';
+    atualizarOpcoes();
+    sincronizarRecurso();
+    atualizarMesasDespesa();
+  });
+});
+
+// ── PDI selects ───────────────────────────────────────────────────────────────
+document.querySelectorAll('select:not(.recurso-choice)').forEach(el => {
+  if (!el.classList.contains('ts-hidden-accessible')) {
+    try { new TomSelect(el, { allowEmptyOption: true, dropdownParent: 'body' }); } catch(e) {}
+  }
+});
+
+// ── Filtro em cascata ─────────────────────────────────────────────────────────
+function recursosFiltrados(ignorarCampo) {
+  return despesaRecursos.filter(r =>
+    camposRecurso.every(c => {
+      if (c === ignorarCampo) return true;
+      const sel = estado[c];
+      return !sel || String(r[c] ?? '') === sel;
+    })
+  );
+}
+
+function rebuilOptions(ts, opcoes, labelsMap, atual) {
+  const validSet = new Set(opcoes);
+  const novoVal  = (atual && validSet.has(atual)) ? atual : '';
+  atualizando = true;
+  try {
+    ts.clearOptions();
+    ts.addOption({ value: '', text: 'Selecione' });
+    opcoes.forEach(v => ts.addOption({ value: v, text: (labelsMap && labelsMap[v]) || v }));
+    ts.refreshOptions(false);
+    ts.setValue(novoVal, true);
+  } finally {
+    atualizando = false;
+  }
+  return novoVal;
+}
+
+function atualizarOpcoes() {
+  camposRecurso.forEach(campo => {
+    const ts    = controles[campo];
+    const atual = estado[campo];
+    const vals  = new Set();
+    recursosFiltrados(campo).forEach(r => { const v = String(r[campo] ?? ''); if (v) vals.add(v); });
+    const labels = CAMPO_LABELS[campo] || null;
+    const opcoes = [...vals].sort((a,b) => ((labels && labels[a]) || a).localeCompare((labels && labels[b]) || b,'pt-BR'));
+    const ficou  = rebuilOptions(ts, opcoes, labels, atual);
+    if (ficou !== atual) estado[campo] = ficou;
+  });
+}
+
+// ── Utilitários de moeda ──────────────────────────────────────────────────────
+function moeda(v) {
+  if (v === null || v === undefined || isNaN(Number(v))) return '—';
+  return 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function valorComprometido() {
+  if (modoLivre) return itensLivres.reduce((acc, r) => acc + totalItemLivre(r), 0);
+  if (itensDespesa.length) return itensDespesa.reduce((acc, row) => acc + totalItem(row), 0);
+  const el = document.querySelector('[name="valor_comprometido"]');
+  if (!el) return 0;
+  const bruto = String(el.value || '').trim();
+  if (!bruto) return 0;
+  const norm = bruto.includes(',') ? bruto.replace(/\./g,'').replace(',','.') : bruto;
+  const n = Number(norm);
+  return isFinite(n) ? n : 0;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+  }[ch]));
+}
+
+function numeroPt(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return 0;
+  const normalized = raw.includes(',') ? raw.replace(/\./g, '').replace(',', '.') : raw;
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function totalItem(row) {
+  return numeroPt(row.quantidade) * numeroPt(row.valor_unitario);
+}
+
+function itemCompativelComRecurso(item, recurso) {
+  if (!item || !recurso) return false;
+  if (item.situacao === 'vencido') return false;
+  const mesmaRubrica = (
+    String(item.rubrica_norm || '') === String(recurso.rubrica_norm || '') ||
+    (item.rubrica_codigo && recurso.rubrica_codigo && String(item.rubrica_codigo) === String(recurso.rubrica_codigo))
+  );
+  const mesmaNatureza = (
+    !item.natureza_key ||
+    !recurso.natureza_key ||
+    String(item.natureza_key) === String(recurso.natureza_key)
+  );
+  return mesmaRubrica && mesmaNatureza;
+}
+
+function filtroTextoItem(item) {
+  return [
+    item.pregao, item.item, item.material_licitado, item.material,
+    item.rubrica, item.origem, item.situacao_label
+  ].join(' ').toLowerCase();
+}
+
+function licitacoesFiltradas() {
+  const recurso = recursoSelecionado();
+  const busca = String(document.getElementById('licitacao-busca')?.value || '').trim().toLowerCase();
+  const situacao = document.getElementById('licitacao-situacao')?.value || '';
+  return licitacaoItens.filter(item => {
+    if (!itemCompativelComRecurso(item, recurso)) return false;
+    if (situacao && situacao !== 'todos' && item.situacao !== situacao) return false;
+    if (!busca) return true;
+    return filtroTextoItem(item).includes(busca);
+  }).slice(0, 80);
+}
+
+function renderizarLicitacoes() {
+  const tbody = document.getElementById('licitacao-tbody');
+  if (!tbody) return;
+  const recurso = recursoSelecionado();
+  if (!recurso) {
+    tbody.innerHTML = '<tr><td colspan="8" class="linha-vazia">Selecione o recurso utilizado para listar as licitações compatíveis.</td></tr>';
+    return;
+  }
+  const rows = licitacoesFiltradas();
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="linha-vazia">Nenhum item compatível com a rubrica do recurso selecionado.</td></tr>';
+    return;
+  }
+  const selecionados = new Set(itensDespesa.map(row => String(row.registro_preco_item)));
+  tbody.innerHTML = rows.map(item => {
+    const jaSelecionado = selecionados.has(String(item.id));
+    const saldo = item.saldo_unidade != null
+      ? `${escapeHtml(String(item.saldo_unidade))} ${escapeHtml(item.unidade || '')}`
+      : '—';
+    return `
+      <tr>
+        <td><strong>${escapeHtml(item.pregao)}</strong><div class="text-muted" style="font-size:.68rem">${escapeHtml(item.origem)}</div></td>
+        <td class="text-center">${escapeHtml(item.item)}</td>
+        <td><div class="licitacao-material" title="${escapeHtml(item.material_licitado)}">${escapeHtml(item.material_licitado || '-')}</div></td>
+        <td><div class="licitacao-material" title="${escapeHtml(item.material)}">${escapeHtml(item.material)}</div></td>
+        <td>${escapeHtml(item.rubrica)}</td>
+        <td class="text-center">${escapeHtml(item.unidade || '-')}</td>
+        <td class="text-end fw-semibold">${saldo}</td>
+        <td class="text-end">${moeda(item.valor || 0)}</td>
+        <td class="text-center">
+          <button type="button" class="btn btn-xs ${jaSelecionado ? 'btn-success' : 'btn-outline-primary'}" data-add-licitacao="${item.id}" ${jaSelecionado ? 'disabled' : ''}>
+            <i class="bi ${jaSelecionado ? 'bi-check2' : 'bi-plus-lg'}"></i>
+          </button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function adicionarItemDespesa(id) {
+  const item = licitacaoPorId.get(String(id));
+  const recurso = recursoSelecionado();
+  if (!item || !itemCompativelComRecurso(item, recurso)) return;
+  if (itensDespesa.some(row => String(row.registro_preco_item) === String(id))) return;
+  itensDespesa.push({
+    registro_preco_item: String(item.id),
+    quantidade: '1',
+    valor_unitario: String(item.valor || 0),
+    saldo_unidade: item.saldo_unidade,
+    unidade: item.unidade || '',
+    pdi_links: [],
+  });
+  renderizarLicitacoes();
+  renderizarItensDespesa();
+  sincronizarRecurso();
+}
+
+function removerItemDespesa(id) {
+  itensDespesa = itensDespesa.filter(row => String(row.registro_preco_item) !== String(id));
+  renderizarLicitacoes();
+  renderizarItensDespesa();
+  sincronizarRecurso();
+}
+
+function atualizarLinhaDespesa(id, field, value) {
+  const row = itensDespesa.find(item => String(item.registro_preco_item) === String(id));
+  if (!row) return;
+  row[field] = value;
+  document.querySelectorAll('[data-total-for]').forEach(cell => {
+    if (String(cell.dataset.totalFor) === String(id)) cell.textContent = moeda(totalItem(row));
+  });
+  const totalBox = document.getElementById('despesa-total');
+  if (totalBox) totalBox.textContent = moeda(valorComprometido());
+  preencherCamposLegado();
+  sincronizarRecurso();
+}
+
+function removerItensIncompativeis() {
+  const recurso = recursoSelecionado();
+  itensDespesa = itensDespesa.filter(row => itemCompativelComRecurso(licitacaoPorId.get(String(row.registro_preco_item)), recurso));
+}
+
+function renderizarItensDespesa() {
+  const tbody = document.getElementById('despesa-itens-tbody');
+  const totalBox = document.getElementById('despesa-total');
+  if (!tbody) return;
+  if (!itensDespesa.length && !despesaEditando) {
+    tbody.innerHTML = '<tr><td colspan="9" class="linha-vazia">Nenhum item adicionado.</td></tr>';
+    if (totalBox) totalBox.textContent = moeda(0);
+    preencherCamposLegado();
+    return;
+  }
+  const rows = [];
+  itensDespesa.forEach(row => {
+    const item     = licitacaoPorId.get(String(row.registro_preco_item));
+    const total    = totalItem(row);
+    const saldo    = row.saldo_unidade != null
+      ? `<span class="${numeroPt(row.quantidade) > row.saldo_unidade ? 'text-danger fw-bold' : ''}">${escapeHtml(String(row.saldo_unidade))} ${escapeHtml(row.unidade || '')}</span>`
+      : '—';
+    const maxAttr  = row.saldo_unidade != null ? `max="${row.saldo_unidade}"` : '';
+    const temPdi   = (row.pdi_links || []).length > 0;
+    const aberto   = pdiPanelAberto === String(row.registro_preco_item);
+    rows.push(`
+      <tr>
+        <td><strong>${escapeHtml(item?.pregao || '-')}</strong></td>
+        <td class="text-center">${escapeHtml(item?.item || '-')}</td>
+        <td><div class="licitacao-material" title="${escapeHtml(item?.material || '')}">${escapeHtml(item?.material || '-')}</div></td>
+        <td>${escapeHtml(item?.rubrica || '-')}</td>
+        <td class="text-end">${saldo}</td>
+        <td><input type="number" min="1" step="1" ${maxAttr} class="form-control form-control-sm text-end" style="width:60px;margin-left:auto" value="${escapeHtml(row.quantidade)}" data-despesa-row="${row.registro_preco_item}" data-field="quantidade"></td>
+        <td class="text-end val-readonly">${moeda(numeroPt(row.valor_unitario))}</td>
+        <td class="text-end fw-semibold" data-total-for="${row.registro_preco_item}">${moeda(total)}</td>
+        <td class="text-center text-nowrap">
+          <button type="button" class="btn btn-xs ${temPdi ? 'btn-success' : 'btn-outline-secondary'}" data-pdi-toggle="${row.registro_preco_item}" title="Vínculo PDI${temPdi ? ' (' + (row.pdi_links||[]).length + ')' : ''}"><i class="bi bi-chess"></i></button>
+          <button type="button" class="btn btn-xs btn-outline-danger ms-1" data-remove-despesa="${row.registro_preco_item}"><i class="bi bi-trash"></i></button>
+        </td>
+      </tr>`);
+    if (aberto) rows.push(renderPdiPanelRow(row, 9));
+  });
+  tbody.innerHTML = rows.join('');
+  if (totalBox) totalBox.textContent = moeda(valorComprometido());
+  preencherCamposLegado();
+}
+
+// ── Modo livre (rubricas não-material) ────────────────────────────────────────
+function atualizarModo() {
+  const recurso = recursoSelecionado();
+  const novoModoLivre = recurso ? !isRubricaMaterial(recurso) : false;
+  if (novoModoLivre !== modoLivre) {
+    modoLivre = novoModoLivre;
+    if (modoLivre) { itensDespesa = []; }
+    else           { itensLivres  = []; pdiPanelAberto = null; }
+  }
+  const showLivre = modoLivre;
+  document.getElementById('secao-licitacoes').style.display    = showLivre ? 'none' : '';
+  document.getElementById('secao-itens-material').style.display = showLivre ? 'none' : '';
+  document.getElementById('secao-itens-livres').style.display   = showLivre ? '' : 'none';
+  if (modoLivre) {
+    // Atualiza rubrica dos itens livres se o recurso mudou
+    const rb = recurso ? (recurso.rubrica || '') : '';
+    itensLivres.forEach(r => { r.rubrica = rb; });
+  }
+}
+
+function adicionarItemLivre() {
+  const recurso = recursoSelecionado();
+  if (!recurso) return;
+  _livreCounter++;
+  itensLivres.push({
+    id: 'livre_' + _livreCounter,
+    discriminacao: '',
+    rubrica: recurso.rubrica || '',
+    quantidade: '1',
+    valor_unitario: '',
+    pdi_links: [],
+    is_livre: true,
+  });
+  renderizarItensLivres();
+}
+
+function atualizarLinhaDespesaLivre(id, field, value) {
+  const row = itensLivres.find(r => String(r.id) === id);
+  if (!row) return;
+  row[field] = value;
+  if (field === 'quantidade' || field === 'valor_unitario') {
+    const total = totalItemLivre(row);
+    const totalCell = document.querySelector(`[data-livre-total="${id}"]`);
+    if (totalCell) totalCell.textContent = moeda(total);
+    const grandTotal = itensLivres.reduce((acc, r) => acc + totalItemLivre(r), 0);
+    const totalBox = document.getElementById('despesa-total');
+    if (totalBox) totalBox.textContent = moeda(grandTotal);
+    sincronizarRecurso();
+  }
+  preencherCamposLegado();
+}
+
+function renderizarItensLivres() {
+  const tbody = document.getElementById('livres-tbody');
+  const totalBox = document.getElementById('despesa-total');
+  if (!tbody) return;
+  if (!itensLivres.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="linha-vazia">Selecione o recurso e clique em "+ Adicionar item".</td></tr>';
+    if (totalBox) totalBox.textContent = moeda(0);
+    preencherCamposLegado();
+    return;
+  }
+  const rows = [];
+  itensLivres.forEach(row => {
+    const total  = totalItemLivre(row);
+    const temPdi = (row.pdi_links || []).length > 0;
+    const aberto = pdiPanelAberto === String(row.id);
+    rows.push(`
+      <tr>
+        <td><input type="text" class="form-control form-control-sm" style="font-size:.78rem" value="${escapeHtml(row.discriminacao)}" data-livre-row="${escapeHtml(String(row.id))}" data-field="discriminacao" placeholder="Descrição do bem ou serviço"></td>
+        <td class="text-muted" style="font-size:.72rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(row.rubrica)}">${escapeHtml(row.rubrica || '—')}</td>
+        <td><input type="number" min="1" step="1" class="form-control form-control-sm text-end" style="width:60px;margin-left:auto" value="${escapeHtml(String(row.quantidade))}" data-livre-row="${escapeHtml(String(row.id))}" data-field="quantidade"></td>
+        <td><input type="number" min="0" step="0.01" class="form-control form-control-sm text-end" value="${escapeHtml(String(row.valor_unitario))}" data-livre-row="${escapeHtml(String(row.id))}" data-field="valor_unitario" placeholder="0,00"></td>
+        <td class="text-end fw-semibold" style="font-size:.78rem" data-livre-total="${escapeHtml(String(row.id))}">${moeda(total)}</td>
+        <td class="text-center text-nowrap">
+          <button type="button" class="btn btn-xs ${temPdi ? 'btn-success' : 'btn-outline-secondary'}" data-pdi-toggle="${escapeHtml(String(row.id))}" title="Vínculo PDI${temPdi ? ' (' + (row.pdi_links||[]).length + ')' : ''}"><i class="bi bi-chess"></i></button>
+          <button type="button" class="btn btn-xs btn-outline-danger ms-1" data-remove-livre="${escapeHtml(String(row.id))}"><i class="bi bi-trash"></i></button>
+        </td>
+      </tr>`);
+    if (aberto) rows.push(renderPdiPanelRow(row, 6));
+  });
+  tbody.innerHTML = rows.join('');
+  const grandTotal = itensLivres.reduce((acc, r) => acc + totalItemLivre(r), 0);
+  if (totalBox) totalBox.textContent = moeda(grandTotal);
+  preencherCamposLegado();
+}
+
+function rebuildPdiSelect(sel, items, keepId) {
+  if (!sel) return;
+  const current = keepId !== undefined ? keepId : (sel.value ? Number(sel.value) : null);
+  sel.innerHTML = '<option value="">— Selecione —</option>' + items.map(i =>
+    `<option value="${i.id}"${i.id === current ? ' selected' : ''}>${escapeHtml(i.codigo ? i.codigo + ' — ' + i.nome : i.nome)}</option>`
+  ).join('');
+}
+
+function renderPdiPanelRow(row, colspan) {
+  colspan = colspan || 9;
+  const links  = row.pdi_links || [];
+  const itemId = row.id !== undefined ? String(row.id) : String(row.registro_preco_item);
+
+  const badgesHtml = links.length ? links.map((lk, idx) => `
+    <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle me-1 mb-1" style="font-size:.72rem">
+      <i class="bi bi-diagram-3 me-1"></i>${escapeHtml(lk.indicador_nome || lk.objetivo_nome || lk.perspectiva_nome || '?')}
+      <button type="button" class="btn-close ms-1" data-pdi-remove-link="${escapeHtml(itemId)}" data-link-idx="${idx}" style="font-size:.5rem;vertical-align:middle" aria-label="Remover"></button>
+    </span>`).join('')
+    : '<span class="text-muted small">Nenhum vínculo PDI cadastrado.</span>';
+
+  const perspOpts = pdiData.map(p =>
+    `<option value="${p.id}">${escapeHtml(p.codigo ? p.codigo + ' — ' + p.nome : p.nome)}</option>`
+  ).join('');
+  const objOpts = [...pdiObjMap.values()].map(o =>
+    `<option value="${o.id}">${escapeHtml(o.codigo ? o.codigo + ' — ' + o.nome : o.nome)}</option>`
+  ).join('');
+  const indOpts = [...pdiIndMap.values()].map(i =>
+    `<option value="${i.id}">${escapeHtml(i.codigo ? i.codigo + ' — ' + i.nome : i.nome)}</option>`
+  ).join('');
+
+  return `
+    <tr class="pdi-panel-row">
+      <td colspan="${colspan}" class="p-0">
+        <div class="pdi-inline-panel">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="fw-semibold small" style="color:#198754"><i class="bi bi-diagram-3 me-1"></i>Vínculos PDI deste item</span>
+            <button type="button" class="btn btn-xs btn-outline-secondary" data-pdi-close="${escapeHtml(itemId)}"><i class="bi bi-x-lg"></i></button>
+          </div>
+          <div class="mb-2">${badgesHtml}</div>
+          <div class="row g-2 align-items-end">
+            <div class="col">
+              <label class="form-label small fw-semibold mb-1">Perspectiva</label>
+              <select class="form-select form-select-sm pdi-panel-perspectiva" data-item="${escapeHtml(itemId)}">
+                <option value="">— Selecione —</option>${perspOpts}
+              </select>
+            </div>
+            <div class="col">
+              <label class="form-label small fw-semibold mb-1">Objetivo Estratégico</label>
+              <select class="form-select form-select-sm pdi-panel-objetivo" data-item="${escapeHtml(itemId)}">
+                <option value="">— Selecione —</option>${objOpts}
+              </select>
+            </div>
+            <div class="col">
+              <label class="form-label small fw-semibold mb-1">Indicador</label>
+              <select class="form-select form-select-sm pdi-panel-indicador" data-item="${escapeHtml(itemId)}">
+                <option value="">— Selecione —</option>${indOpts}
+              </select>
+            </div>
+            <div class="col-auto">
+              <button type="button" class="btn btn-sm btn-success" data-pdi-add-link="${escapeHtml(itemId)}">
+                <i class="bi bi-plus-lg me-1"></i>Adicionar
+              </button>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>`;
+}
+
+function setCampoFormulario(name, value) {
+  const el = document.querySelector(`[name="${name}"]`);
+  if (!el) return;
+  if (el.tomselect) el.tomselect.setValue(String(value ?? ''), true);
+  else el.value = value ?? '';
+}
+
+function preencherCamposLegado() {
+  const hidden = document.getElementById('despesa-itens-json');
+  if (modoLivre) {
+    if (hidden) hidden.value = JSON.stringify(itensLivres);
+    if (itensLivres.length) {
+      const first = itensLivres[0];
+      setCampoFormulario('discriminacao', first.discriminacao || '');
+      setCampoFormulario('quantidade', first.quantidade || '1');
+      setCampoFormulario('valor_unitario', String(first.valor_unitario || '0'));
+    }
+    setCampoFormulario('valor_comprometido', valorComprometido().toFixed(2));
+    return;
+  }
+  if (hidden) hidden.value = JSON.stringify(itensDespesa);
+  if (!itensDespesa.length) return;
+  const first = itensDespesa[0];
+  const item = licitacaoPorId.get(String(first.registro_preco_item));
+  setCampoFormulario('registro_preco_item', first.registro_preco_item);
+  setCampoFormulario('pregao', item?.pregao_id || '');
+  setCampoFormulario('pregao_ref', item?.pregao || '');
+  setCampoFormulario('discriminacao', item?.material || '');
+  setCampoFormulario('quantidade', first.quantidade);
+  setCampoFormulario('valor_unitario', first.valor_unitario);
+  setCampoFormulario('valor_comprometido', valorComprometido().toFixed(2));
+  setCampoFormulario('categoria_material', item?.marca || '');
+}
+
+// ── Recurso selecionado e saldos ──────────────────────────────────────────────
+function recursoSelecionado() {
+  if (!camposRecurso.every(c => estado[c])) return null;
+  return despesaRecursos.find(r =>
+    camposRecurso.every(c => String(r[c] ?? '').trim().toLowerCase() === estado[c].trim().toLowerCase())
+  ) || null;
+}
+
+function sincronizarRecurso() {
+  const recurso    = recursoSelecionado();
+  const hiddenSel  = document.getElementById('id_recurso');
+  if (hiddenSel) hiddenSel.value = recurso ? String(recurso.id) : '';
+
+  const saldoAtual = document.getElementById('res-saldo-atual');
+  const saldoApos  = document.getElementById('res-saldo-apos');
+  if (!saldoAtual || !saldoApos) return;
+
+  if (recurso) {
+    const s   = Number(recurso.saldo_atual || 0);
+    const val = valorComprometido();
+    saldoAtual.textContent = moeda(s);
+    saldoAtual.className   = 'res-saldo' + (s < 0 ? ' is-negative' : '');
+    const apos = s - val;
+    saldoApos.textContent  = moeda(apos);
+    saldoApos.className    = 'res-saldo' + (apos < 0 ? ' is-negative' : (val > 0 ? ' is-positive' : ''));
+  } else {
+    saldoAtual.textContent = '—';
+    saldoAtual.className   = 'res-saldo';
+    saldoApos.textContent  = '—';
+    saldoApos.className    = 'res-saldo';
+  }
+}
+
+// ── Limpar recurso ────────────────────────────────────────────────────────────
+function atualizarMesasDespesa() {
+  atualizarModo();
+  removerItensIncompativeis();
+  renderizarLicitacoes();
+  renderizarItensDespesa();
+  renderizarItensLivres();
+}
+
+function limparRecurso() {
+  camposRecurso.forEach(c => { estado[c] = ''; });
+  atualizando = true;
+  try {
+    camposRecurso.forEach(c => controles[c].setValue('', true));
+  } finally {
+    atualizando = false;
+  }
+  atualizarOpcoes();
+  sincronizarRecurso();
+  atualizarMesasDespesa();
+}
+
+// ── Estado inicial (edição) ───────────────────────────────────────────────────
+document.getElementById('licitacao-busca')?.addEventListener('input', renderizarLicitacoes);
+document.getElementById('licitacao-situacao')?.addEventListener('change', renderizarLicitacoes);
+document.getElementById('btn-atualizar-licitacoes')?.addEventListener('click', renderizarLicitacoes);
+document.getElementById('licitacao-tbody')?.addEventListener('click', event => {
+  const btn = event.target.closest('[data-add-licitacao]');
+  if (btn) adicionarItemDespesa(btn.dataset.addLicitacao);
+});
+function _pdiPanelClickHandler(event) {
+  const btnRemove = event.target.closest('[data-remove-despesa]');
+  if (btnRemove) { removerItemDespesa(btnRemove.dataset.removeDespesa); return; }
+
+  const btnRemoveLivre = event.target.closest('[data-remove-livre]');
+  if (btnRemoveLivre) {
+    const id = btnRemoveLivre.dataset.removeLivre;
+    itensLivres = itensLivres.filter(r => String(r.id) !== id);
+    if (pdiPanelAberto === id) pdiPanelAberto = null;
+    renderizarItensLivres();
+    sincronizarRecurso();
+    return;
+  }
+
+  const btnToggle = event.target.closest('[data-pdi-toggle]');
+  if (btnToggle) {
+    const id = btnToggle.dataset.pdiToggle;
+    pdiPanelAberto = pdiPanelAberto === id ? null : id;
+    renderizarItensAtivos();
+    return;
+  }
+
+  const btnClose = event.target.closest('[data-pdi-close]');
+  if (btnClose) { pdiPanelAberto = null; renderizarItensAtivos(); return; }
+
+  const btnRemoveLink = event.target.closest('[data-pdi-remove-link]');
+  if (btnRemoveLink) {
+    const id  = btnRemoveLink.dataset.pdiRemoveLink;
+    const idx = Number(btnRemoveLink.dataset.linkIdx);
+    const row = encontrarLinhaItem(id);
+    if (row) { row.pdi_links = (row.pdi_links || []).filter((_, i) => i !== idx); preencherCamposLegado(); renderizarItensAtivos(); }
+    return;
+  }
+
+  const btnAdd = event.target.closest('[data-pdi-add-link]');
+  if (btnAdd) {
+    const id    = btnAdd.dataset.pdiAddLink;
+    const tbody = event.currentTarget;
+    const selP  = tbody?.querySelector(`.pdi-panel-perspectiva[data-item="${id}"]`);
+    const selO  = tbody?.querySelector(`.pdi-panel-objetivo[data-item="${id}"]`);
+    const selI  = tbody?.querySelector(`.pdi-panel-indicador[data-item="${id}"]`);
+    const pId   = selP?.value ? Number(selP.value) : null;
+    const oId   = selO?.value ? Number(selO.value) : null;
+    const iId   = selI?.value ? Number(selI.value) : null;
+    if (!pId && !oId && !iId) { alert('Selecione pelo menos uma perspectiva, objetivo ou indicador.'); return; }
+    const row = encontrarLinhaItem(id);
+    if (row) {
+      row.pdi_links = row.pdi_links || [];
+      row.pdi_links.push({
+        perspectiva_id:   pId,
+        perspectiva_nome: pId ? (pdiPerspMap.get(pId)?.nome || '') : '',
+        objetivo_id:      oId,
+        objetivo_nome:    oId ? (pdiObjMap.get(oId)?.nome   || '') : '',
+        indicador_id:     iId,
+        indicador_nome:   iId ? (pdiIndMap.get(iId)?.nome   || '') : '',
+      });
+      preencherCamposLegado();
+      renderizarItensAtivos();
+    }
+    return;
+  }
+}
+
+function _pdiPanelChangeHandler(event) {
+  const selP = event.target.closest('.pdi-panel-perspectiva');
+  const selO = event.target.closest('.pdi-panel-objetivo');
+  if (!selP && !selO) return;
+  const tbody  = event.currentTarget;
+  const itemId = (selP || selO).dataset.item;
+  if (selP) {
+    const pId    = selP.value ? Number(selP.value) : null;
+    const objSel = tbody.querySelector(`.pdi-panel-objetivo[data-item="${itemId}"]`);
+    const indSel = tbody.querySelector(`.pdi-panel-indicador[data-item="${itemId}"]`);
+    rebuildPdiSelect(objSel, pId ? (pdiPerspMap.get(pId)?.objetivos || []) : [...pdiObjMap.values()]);
+    rebuildPdiSelect(indSel, [...pdiIndMap.values()]);
+  } else {
+    const oId    = selO.value ? Number(selO.value) : null;
+    const indSel = tbody.querySelector(`.pdi-panel-indicador[data-item="${itemId}"]`);
+    rebuildPdiSelect(indSel, oId ? (pdiObjMap.get(oId)?.indicadores || []) : [...pdiIndMap.values()]);
+    if (oId && pdiObjMap.has(oId)) {
+      const persp = tbody.querySelector(`.pdi-panel-perspectiva[data-item="${itemId}"]`);
+      if (persp && !persp.value) persp.value = String(pdiObjMap.get(oId).perspectiva_id);
+    }
+  }
+}
+
+document.getElementById('despesa-itens-tbody')?.addEventListener('click',  _pdiPanelClickHandler);
+document.getElementById('despesa-itens-tbody')?.addEventListener('change', _pdiPanelChangeHandler);
+
+document.getElementById('livres-tbody')?.addEventListener('click',  _pdiPanelClickHandler);
+document.getElementById('livres-tbody')?.addEventListener('change', _pdiPanelChangeHandler);
+
+document.getElementById('livres-tbody')?.addEventListener('input', event => {
+  const input = event.target.closest('[data-livre-row]');
+  if (input) atualizarLinhaDespesaLivre(input.dataset.livreRow, input.dataset.field, input.value);
+});
+document.getElementById('despesa-itens-tbody')?.addEventListener('input', event => {
+  const input = event.target.closest('[data-despesa-row]');
+  if (input) atualizarLinhaDespesa(input.dataset.despesaRow, input.dataset.field, input.value);
+});
+document.getElementById('despesa-form')?.addEventListener('submit', event => {
+  preencherCamposLegado();
+  const items = modoLivre ? itensLivres : itensDespesa;
+  if (!items.length) {
+    event.preventDefault();
+    alert('Adicione pelo menos um item à despesa.');
+    return;
+  }
+  if (modoLivre) {
+    const invalid = itensLivres.find(r => !r.discriminacao.trim() || numeroPt(r.valor_unitario) <= 0);
+    if (invalid) {
+      event.preventDefault();
+      alert('Preencha a descrição e o valor unitário de todos os itens.');
+    }
+  }
+});
+
+(function() {
+  const hiddenSel = document.getElementById('id_recurso');
+  const recurso   = recursosPorId.get(String(hiddenSel?.value || ''));
+  if (recurso) {
+    camposRecurso.forEach(c => { estado[c] = String(recurso[c] ?? ''); });
+  }
+})();
+
+// ── Arranque ──────────────────────────────────────────────────────────────────
+// Se há dados do POST (erro de validação), eles sobrepõem _itensIniciais
+(function() {
+  try {
+    const persisted = JSON.parse(document.getElementById('despesa-itens-json')?.value || '[]');
+    if (Array.isArray(persisted) && persisted.length) {
+      if (persisted[0].is_livre) {
+        itensLivres = persisted;
+        _livreCounter = Math.max(...itensLivres.map(r => Number(String(r.id).replace('livre_','')) || 0));
+      } else {
+        itensDespesa = persisted;
+      }
+    }
+  } catch(e) {}
+})();
+atualizarOpcoes();
+
+// Aplica valores selecionados inicialmente
+if (camposRecurso.some(c => estado[c])) {
+  atualizando = true;
+  try {
+    camposRecurso.forEach(c => { if (estado[c]) controles[c].setValue(estado[c], true); });
+  } finally {
+    atualizando = false;
+  }
+}
+
+sincronizarRecurso();
+atualizarMesasDespesa();
+
+// Atualiza saldo após quando valor_comprometido muda
+document.querySelector('[name="valor_comprometido"]')?.addEventListener('input', sincronizarRecurso);
+
+</script>
+{% endblock %}

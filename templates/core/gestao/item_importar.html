@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block title %}Importar Itens – IRP CT/UFPB{% endblock %}
+{% block content %}
+<div class="row">
+  <div class="col-12">
+    <nav aria-label="breadcrumb" class="mb-2">
+      <ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a href="{% url 'gestao_irp_list' %}">IRPs</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'gestao_item_list' irp.pk %}">{{ irp.titulo }}</a></li>
+        <li class="breadcrumb-item active">Importar Itens</li>
+      </ol>
+    </nav>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-upload me-1"></i> Importar Itens via Planilha</span>
+        <a href="{% url 'gestao_item_template_xlsx' irp.pk %}"
+           class="btn btn-sm btn-success fw-semibold"
+           style="font-family:'Open Sans',sans-serif">
+          <i class="bi bi-file-earmark-excel me-1"></i> Baixar Planilha Modelo
+        </a>
+      </div>
+      <div class="card-body">
+
+        <!-- Formato da planilha -->
+        <div class="alert alert-success border-0 mb-3">
+          <h6 class="fw-bold mb-2"><i class="bi bi-file-earmark-excel me-1"></i> Formato da planilha (.xlsx ou .csv)</h6>
+          <p class="small mb-2">A primeira linha deve conter os cabeçalhos abaixo. Use a <strong>planilha modelo</strong> disponível acima.</p>
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered mb-0 small bg-white">
+              <thead class="table-light">
+                <tr>
+                  <th>ITEM</th>
+                  <th>UND</th>
+                  <th>RUBRICA</th>
+                  <th>N° DFD</th>
+                  <th>CÓDIGO CATMAT</th>
+                  <th>DISCRIMINAÇÃO DE MATERIAL</th>
+                  <th>VALOR</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>1</td>
+                  <td>UNIDADE</td>
+                  <td>339030 - Material de Consumo</td>
+                  <td>774/2024</td>
+                  <td>233708</td>
+                  <td>PAPEL ALUMÍNIO EM ROLO, LARGURA 45 CM X COMPRIMENTO 7,5 M.</td>
+                  <td>7,30</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="small mt-2 mb-1 text-muted">
+            <strong>RUBRICA</strong> — valores aceitos pelo cadastro do módulo Orçamento (pode ser omitida):
+          </p>
+          <ul class="small text-muted mb-0">
+            {% for rubrica in rubricas_validas %}
+            <li><code>{{ rubrica }}</code></li>
+            {% empty %}
+            <li><em>Nenhuma rubrica cadastrada no módulo Orçamento.</em></li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <div class="alert alert-secondary border-0 py-2 mb-4 small">
+          <i class="bi bi-arrow-repeat me-1"></i>
+          Se o número do item já existir nesta IRP, o registro será <strong>atualizado</strong> com os novos dados.
+        </div>
+
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          {% for field in form %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+            {% for err in field.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+          </div>
+          {% endfor %}
+          <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-upload me-1"></i> Importar
+            </button>
+            <a href="{% url 'gestao_item_list' irp.pk %}" class="btn btn-outline-secondary">Cancelar</a>
+          </div>
+        </form>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

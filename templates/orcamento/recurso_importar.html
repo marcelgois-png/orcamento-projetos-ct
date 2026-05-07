@@ -1,0 +1,104 @@
+{% extends 'base_orcamento.html' %}
+
+{% block title %}Importar Recursos — Execução Orçamentária{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12">
+
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <a href="{% url 'recurso_list' %}" class="btn btn-sm btn-light"><i class="bi bi-arrow-left"></i></a>
+      <h5 class="mb-0 fw-bold">Importar Recursos via Planilha</h5>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center py-3 px-3">
+        <span class="fw-semibold"><i class="bi bi-upload me-1"></i>Enviar planilha</span>
+        <a href="{% url 'recurso_template_xlsx' %}" class="btn btn-sm btn-success fw-semibold">
+          <i class="bi bi-file-earmark-excel me-1"></i>Baixar Planilha Modelo
+        </a>
+      </div>
+      <div class="card-body p-4">
+
+        <!-- Formato da planilha -->
+        <div class="alert border-0 mb-4" style="background:#fff5f2;border-left:4px solid #c6543c !important;border-left-style:solid !important">
+          <h6 class="fw-bold mb-2"><i class="bi bi-file-earmark-excel me-1" style="color:#c6543c"></i>Formato da planilha (.xlsx ou .csv)</h6>
+          <p class="small mb-2">A primeira linha deve conter os cabeçalhos abaixo. Use a <strong>Planilha Modelo</strong> disponível acima — ela já inclui uma aba de referência com os valores válidos.</p>
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered mb-0 small bg-white">
+              <thead class="table-light">
+                <tr>
+                  <th>ANO FISCAL</th>
+                  <th>SETOR (sigla)</th>
+                  <th>ORIGEM DO RECURSO</th>
+                  <th>NATUREZA</th>
+                  <th>RUBRICA</th>
+                  <th>VALOR ORÇAMENTÁRIO</th>
+                  <th>OBSERVAÇÕES</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="text-muted fst-italic">
+                  <td>2025</td>
+                  <td>DEMAT</td>
+                  <td>Discricionário</td>
+                  <td>Custeio</td>
+                  <td>339030 - Material de Consumo</td>
+                  <td>50000,00</td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="row mt-3 small">
+            <div class="col-sm-6">
+              <p class="fw-semibold mb-1 text-muted">NATUREZA — valores aceitos:</p>
+              <ul class="text-muted mb-0 ps-3">
+                <li><code>Custeio</code></li>
+                <li><code>Capital</code></li>
+              </ul>
+            </div>
+            <div class="col-sm-6">
+              <p class="fw-semibold mb-1 text-muted">RUBRICA — valores aceitos:</p>
+              <ul class="text-muted mb-0 ps-3" style="font-size:.78rem">
+                <li><code>339014 - Diárias</code></li>
+                <li><code>339018 - Auxílio Financeiro ao Estudante</code></li>
+                <li><code>339030 - Material de Consumo</code></li>
+                <li><code>339033 - Passagens e Locomoção</code></li>
+                <li><code>339036 - Estagiários</code></li>
+                <li><code>339036 - Serviços Pessoa Física</code></li>
+                <li><code>339039 - Serviços Pessoa Jurídica</code></li>
+                <li><code>339040 - Serviços PJ | TIC</code></li>
+                <li><code>449052 - Material Permanente</code></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert alert-secondary border-0 py-2 mb-4 small">
+          <i class="bi bi-arrow-repeat me-1"></i>
+          Se já existir um recurso com o mesmo <strong>Ano + Setor + Origem + Natureza + Rubrica</strong>, o registro será <strong>atualizado</strong> com o novo valor.
+        </div>
+
+        <!-- Formulário de upload -->
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Arquivo <span class="text-danger">*</span></label>
+            <input type="file" name="arquivo" class="form-control" accept=".xlsx,.csv" required>
+            <div class="form-text">Planilha Excel (.xlsx) ou CSV separado por ponto-e-vírgula (;).</div>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-upload me-1"></i>Importar
+            </button>
+            <a href="{% url 'recurso_list' %}" class="btn btn-light">Cancelar</a>
+          </div>
+        </form>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

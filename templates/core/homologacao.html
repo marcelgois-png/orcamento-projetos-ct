@@ -1,0 +1,616 @@
+{% extends 'base.html' %}
+{% load core_tags %}
+{% block title %}Homologar – {{ irp.titulo }}{% endblock %}
+{% block extra_head %}
+<style>
+  .table-scroll-container {
+    overflow-x: auto;
+    position: relative;
+    border-radius: 8px 8px 0 0;
+  }
+  .table-scroll-container::-webkit-scrollbar { width: 6px; height: 6px; }
+  .table-scroll-container::-webkit-scrollbar-thumb { background: #dee2e6; border-radius: 3px; }
+
+  .tabela-hom {
+    table-layout: fixed;
+    width: max-content;
+    min-width: 100%;
+    margin-bottom: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .tabela-hom th, .tabela-hom td {
+    font-size: 0.675rem !important;
+    line-height: 1.2;
+    white-space: nowrap;
+    vertical-align: middle !important;
+  }
+  
+  .sticky-col {
+    position: sticky !important;
+    background-color: #fff !important;
+    z-index: 1010;
+    border-right: 1px solid #dee2e6;
+  }
+  thead th {
+    z-index: 1500;
+    background-color: #f8f9fa !important;
+    border-bottom: 2px solid #dee2e6 !important;
+    font-size: 0.6rem !important;
+    white-space: normal !important;
+    vertical-align: middle !important;
+    text-align: center;
+  }
+
+  .ts-dropdown {
+    z-index: 2000 !important;
+  }
+  thead th.sticky-col { 
+    z-index: 1520; 
+    box-shadow: inset 0 -1px 0 #dee2e6;
+  }
+  tfoot td {
+    position: sticky !important;
+    bottom: 0;
+    z-index: 1500;
+    background-color: #f8f9fa !important;
+    border-top: 2px solid #dee2e6 !important;
+  }
+  tfoot td.sticky-col {
+    z-index: 1520 !important;
+  }
+  tfoot td.tfoot-spacer {
+    border-right: none !important;
+    box-shadow: none !important;
+  }
+  
+  .last-sticky { 
+    border-right: 2px solid #dee2e6 !important;
+    box-shadow: 4px 0 8px rgba(0,0,0,0.05);
+  }
+
+  .col-desc {
+    width: 200px !important;
+    min-width: 200px !important;
+    max-width: 200px !important;
+  }
+  .col-desc .desc-text {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 190px;
+    cursor: help;
+  }
+  .col-std {
+    width: 100px !important;
+    min-width: 100px !important;
+    max-width: 100px !important;
+  }
+  .col-ajuste-lg {
+    width: 120px !important;
+    min-width: 120px !important;
+    max-width: 120px !important;
+  }
+
+  #partial-scrollbar-wrapper {
+    overflow-x: auto;
+    overflow-y: hidden;
+    height: 14px;
+    background: #f1f3f5;
+    border: 1px solid #dee2e6;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+  }
+  #partial-scrollbar-dummy { height: 1px; }
+
+  .col-sep-ajuste {
+    border-right: 2px solid #dee2e6 !important;
+    box-shadow: 4px 0 8px rgba(0,0,0,0.05);
+  }
+  .col-ajuste { background: #fffbe6; }
+  .input-qtd { width: 72px; text-align: center; }
+  .fase-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: .72rem; font-weight: 600; border-radius: 20px;
+    padding: 2px 10px;
+  }
+  .fase-pendente   { background:#fff3cd; color:#664d03; }
+  .fase-homologada { background:#d1e7dd; color:#0a3622; }
+  .fase-rejeitada  { background:#f8d7da; color:#58151c; }
+  
+  th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+  th.sortable:hover { background-color: #e9ecef; }
+  th.sortable .sort-icon { font-size: .6rem; opacity: .35; margin-left: 3px; }
+  th.sortable.asc  .sort-icon::after { content: '▲'; opacity: 1; color: #0d6efd; }
+  th.sortable.desc .sort-icon::after { content: '▼'; opacity: 1; color: #0d6efd; }
+  th.sortable:not(.asc):not(.desc) .sort-icon::after { content: '⇅'; }
+
+  #card-tabela-hom { box-shadow: none; border: none; }
+  #card-tabela-hom .card-body { padding: 0; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <h4 class="fw-bold mb-0" style="font-family:'Open Sans',sans-serif; display: flex; align-items: center; gap: 8px;">
+    <i class="bi bi-check2-circle text-primary"></i>Homologações
+  </h4>
+</div>
+
+<div class="mb-4">
+  <div style="display:inline-flex; align-items:center; gap:12px; font-family:'Open Sans',sans-serif; border-radius:8px; padding:8px 18px; background:var(--ct-primary); color:#fff; box-shadow:0 2px 4px rgba(0,0,0,.1)">
+    <span class="text-uppercase fw-bold" style="font-size:.72rem; letter-spacing:.12em">IRP</span>
+    <span class="fw-bold" style="font-size:1.1rem; line-height:1">{{ irp.titulo }}</span>
+    {% if irp.descricao %}
+    <span class="fw-semibold" style="font-size:.85rem; letter-spacing:.02em; border-left:1px solid rgba(255,255,255,.3); padding-left:12px">
+      {{ irp.descricao }}
+    </span>
+    {% endif %}
+  </div>
+</div>
+
+<div class="mb-4 d-flex flex-column gap-3" style="font-size:.875rem; font-family:'Open Sans',sans-serif; color:#495057">
+  <div class="d-flex flex-wrap align-items-center" style="gap: 2rem 4rem;">
+    <div class="d-flex align-items-center gap-2" style="min-width: 440px;">
+      <span class="fw-bold text-dark">Prazos:</span>
+      <span class="text-muted">Respostas:</span>
+      <span {% if irp.prazo < agora %}style="color:#dc3545;font-weight:600"{% endif %}>{{ irp.prazo|date:"d/m/Y" }}</span>
+      <span class="text-muted mx-1">.</span>
+      <span class="text-muted">Homologação:</span>
+      <span {% if irp.prazo_homologacao < agora %}style="color:#dc3545;font-weight:600"{% endif %}>{{ irp.prazo_homologacao|date:"d/m/Y" }}</span>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <span class="fw-bold text-dark">Fase:</span>
+      {% if irp.fase_atual == 'em_cadastro' %}
+      <span class="fase-badge fase-cadastro">Em cadastro</span>
+      {% elif irp.fase_atual == 'respostas' %}
+      <span class="fase-badge fase-respostas">Coletando respostas</span>
+      {% elif irp.fase_atual == 'homologacao' %}
+      <span class="fase-badge fase-homologacao">Em homologação</span>
+      {% elif irp.fase_atual == 'encerrada' %}
+      <span class="fase-badge fase-encerrada">Encerrada</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="d-flex flex-wrap align-items-center" style="gap: 2rem 4rem;">
+    <div class="d-flex align-items-center gap-2" style="min-width: 440px;">
+      <span class="fw-bold text-dark">Setor em homologação por você:</span>
+      <span class="text-primary fw-semibold">{{ setor_raiz.nome }}</span>
+    </div>
+    {% if setores_com_respostas|length > 1 %}
+    <div class="d-flex align-items-center gap-2">
+      <span class="fw-bold text-dark">Filtrar subsetores:</span>
+      <select id="filtro-subsetor" class="ts-filtro" multiple placeholder="Todos os subsetores">
+        {% for s in setores_com_respostas %}
+        <option value="{{ s.pk }}">{{ s.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<form method="post" id="form-hom">
+  {% csrf_token %}
+
+  <div class="card border-0 shadow-sm mb-4" id="card-tabela-hom">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center py-2 sticky-top" style="top: var(--tb-h); z-index: 1999; box-shadow: 0 2px 4px rgba(0,0,0,.05);">
+      <span class="fw-semibold" style="font-family:'Open Sans',sans-serif;font-size:.875rem">
+        <i class="bi bi-table me-1 text-muted"></i>Intenções de compra — {{ respostas.count }} respondente(s) no grupo
+      </span>
+      {% if not readonly %}
+      <span class="text-muted small fw-normal" style="font-family:'Open Sans',sans-serif">
+        Coluna <span class="badge" style="background:#fffbe6;color:#664d03;border:1px solid #ffc107;font-size:.7rem">Qtd. Homologada</span> é editável
+      </span>
+      {% else %}
+      <span class="badge bg-secondary-subtle text-secondary border" style="font-size:.72rem">
+        <i class="bi bi-eye me-1"></i>Somente leitura
+      </span>
+      {% endif %}
+    </div>
+
+    <div class="card-body p-0">
+      <div class="table-scroll-container" id="real-table-container">
+        <table class="table table-hover tabela-hom" id="tabela-hom-itens">
+          <thead class="table-light">
+            <tr>
+              <th class="sortable text-center sticky-col" data-col="0" style="width:50px">N.</th>
+              <th class="sortable text-start sticky-col col-desc" data-col="1">Descricao</th>
+              <th class="text-center sortable sticky-col col-std" data-col="2">Unid.</th>
+              <th class="text-center sortable sticky-col col-std" data-col="3">Valor Ref.</th>
+              {% for resp in respostas %}
+              <th class="text-center resp-col col-std" data-setor="{{ resp.setor.pk }}">
+                <span title="{% if resp.usuario.perfil %}{{ resp.usuario.perfil.nome_completo }}{% else %}{{ resp.usuario.username }}{% endif %}">
+                  {% if resp.usuario.perfil %}{{ resp.usuario.perfil.nome_completo|nome_curto|upper }}{% else %}{{ resp.usuario.username|upper }}{% endif %}
+                </span>
+              </th>
+              {% endfor %}
+              <th class="text-center fw-bold col-std col-sep-ajuste">Total</th>
+              <th class="text-center col-ajuste col-ajuste-lg">Qtd. Homologada</th>
+              <th class="text-center col-ajuste col-ajuste-lg">R$ Homologados</th>
+              <th class="text-center col-ajuste col-std">Obs. Gestor</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-hom-itens">
+            {% for item in itens %}
+            {% with hom_item=hom_itens_map|get_item:item.id %}
+            <tr class="hom-item-row" data-item="{{ item.pk }}">
+              <td class="text-center text-muted fw-semibold sticky-col" data-sort="{{ item.numero|stringformat:'06d' }}" style="width:50px">{{ item.numero }}</td>
+              <td class="text-start sticky-col col-desc" data-sort="{{ item.descricao|lower }}">
+                <span class="desc-text fw-semibold text-dark" title="{{ item.descricao }}">
+                  {{ item.descricao }}
+                </span>
+              </td>
+              <td class="text-center sticky-col col-std" data-sort="{{ item.unidade|lower }}">{{ item.unidade }}</td>
+              <td class="text-center sticky-col col-std" data-sort="{{ item.preco_estimado|stringformat:'020.2f' }}" data-valor="{{ item.preco_estimado|stringformat:'f' }}">{{ item.preco_estimado|brl }}</td>
+              
+              {% for resp in respostas %}
+              {% with ri=ri_map|get_item:resp.id %}
+              {% if ri %}{% with item_ri=ri|dict_get:item.id %}
+              <td class="text-center resp-col col-std {% if item_ri and item_ri.quantidade %}fw-semibold text-primary{% else %}text-muted{% endif %}"
+                  data-setor="{{ resp.setor.pk }}"
+                  data-qty="{% if item_ri and item_ri.quantidade %}{{ item_ri.quantidade|floatformat:0 }}{% else %}0{% endif %}"
+                  {% if item_ri.observacao %}title="Justificativa: {{ item_ri.observacao }}"{% endif %}>
+                {% if item_ri and item_ri.quantidade %}{{ item_ri.quantidade|floatformat:0 }}{% else %}—{% endif %}
+              </td>
+              {% endwith %}{% else %}
+              <td class="text-center text-muted resp-col col-std" data-setor="{{ resp.setor.pk }}" data-qty="0">—</td>
+              {% endif %}{% endwith %}
+              {% endfor %}
+              
+              <td class="text-center fw-bold text-primary col-std col-sep-ajuste">
+                <span class="col-total-grupo">0</span>
+              </td>
+              <td class="text-center col-ajuste col-ajuste-lg">
+                {% if not readonly %}
+                <input type="number" class="form-control form-control-sm input-qtd col-qtd-homologada" name="qty_{{ item.pk }}" value="{{ hom_item.quantidade_aprovada|default:0|floatformat:0 }}" min="0" data-item="{{ item.pk }}">
+                {% else %}
+                <span class="col-qtd-homologada">{{ hom_item.quantidade_aprovada|default:0 }}</span>
+                {% endif %}
+              </td>
+              <td class="text-center text-end col-ajuste col-ajuste-lg col-val-homologada">
+                R$ 0,00
+              </td>
+              <td class="text-start col-ajuste col-std">
+                {% if not readonly %}
+                <input type="text" class="form-control form-control-sm" name="obs_{{ item.pk }}" value="{{ hom_item.observacao|default:'' }}" placeholder="Obs...">
+                {% else %}
+                <small class="text-muted">{% if hom_item.observacao %}{{ hom_item.observacao }}{% else %}—{% endif %}</small>
+                {% endif %}
+              </td>
+            </tr>
+            {% endwith %}
+            {% endfor %}
+          </tbody>
+          <tfoot class="table-light fw-bold">
+            <tr>
+              <td class="sticky-col tfoot-spacer" style="width:50px"></td>
+              <td class="sticky-col tfoot-spacer col-desc"></td>
+              <td class="sticky-col tfoot-spacer col-std"></td>
+              <td class="text-end py-2 sticky-col col-std" style="font-weight:700">TOTAL GERAL:</td>
+              {% for resp in respostas %}
+              <td class="text-center resp-col footer-resp-total col-std" data-setor="{{ resp.setor.pk }}">0</td>
+              {% endfor %}
+              <td class="text-center text-primary footer-grupo-total col-std col-sep-ajuste">0</td>
+              <td class="text-center col-ajuste footer-hom-qty col-ajuste-lg">0</td>
+              <td class="text-center col-ajuste footer-hom-val col-ajuste-lg">R$ 0,00</td>
+              <td class="col-ajuste col-std"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div id="partial-scrollbar-wrapper" class="d-none d-md-block">
+        <div id="partial-scrollbar-dummy"></div>
+      </div>
+
+      <!-- Rodapé informativo -->
+      <div class="px-3 py-2 bg-white border-top" style="font-size:.68rem;font-family:'Open Sans',sans-serif;color:#6c757d">
+        <i class="bi bi-info-circle me-1"></i>
+        Passe o cursor sobre a <strong>descrição</strong> de um item para ver o texto completo, ou sobre as <strong>quantidades intencionadas</strong> para ver as justificativas dos respondentes.
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mt-3" style="font-family:'Open Sans',sans-serif">
+    <div class="card-header bg-white border-bottom py-2 px-3">
+      <span class="fw-semibold" style="font-size:.875rem">
+        {% if readonly %}
+          <i class="bi bi-info-circle me-1 text-muted"></i>Informações da Homologação
+        {% else %}
+          <i class="bi bi-pencil-square me-1 text-muted"></i>Registrar Decisão de Homologação
+        {% endif %}
+      </span>
+    </div>
+    <div class="card-body p-3">
+
+      {% if homologacao.homologado_em %}
+      <div class="d-flex align-items-center gap-2 p-2 mb-3 rounded border bg-light" style="font-size:.8rem;color:#6c757d">
+        <i class="bi bi-clock-history text-muted flex-shrink-0"></i>
+        <span>Última atualização por
+          <strong class="text-dark">{% if homologacao.homologado_por.perfil %}{{ homologacao.homologado_por.perfil.nome_completo }}{% else %}{{ homologacao.homologado_por }}{% endif %}</strong>
+          em {{ homologacao.homologado_em|date:"d/m/Y H:i" }}.
+        </span>
+        <!-- Status da homologação junto ao histórico -->
+        {% if homologacao.status == 'homologada' %}
+          <span class="ms-auto fase-badge fase-homologada flex-shrink-0"><i class="bi bi-check-circle-fill"></i>Homologada</span>
+        {% elif homologacao.status == 'rejeitada' %}
+          <span class="ms-auto fase-badge fase-rejeitada flex-shrink-0"><i class="bi bi-x-circle-fill"></i>Rejeitada</span>
+        {% else %}
+          <span class="ms-auto fase-badge fase-pendente flex-shrink-0"><i class="bi bi-clock"></i>Pendente</span>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold mb-1" style="font-size:.82rem;color:#495057">
+          <i class="bi bi-chat-left-text me-1 text-muted"></i>Observação geral
+          <span class="fw-normal text-muted">(opcional)</span>
+        </label>
+        {% if readonly %}
+        <div class="rounded border p-3 bg-light text-muted" style="font-size:.875rem;min-height:72px;white-space:pre-wrap;line-height:1.5">
+          {% if homologacao.observacao %}{{ homologacao.observacao }}
+          {% else %}<em class="opacity-50">Sem observação registrada</em>{% endif %}
+        </div>
+        {% else %}
+        <textarea name="observacao" rows="3" class="form-control"
+                  style="font-size:.875rem;resize:vertical"
+                  placeholder="Registre ajustes, ressalvas ou justificativas gerais...">{{ homologacao.observacao }}</textarea>
+        {% endif %}
+      </div>
+
+      <div class="d-flex align-items-center gap-2 flex-wrap pt-2 border-top">
+        {% if not readonly %}
+        <button type="button" class="btn btn-success btn-sm fw-semibold px-3"
+                style="font-size:.875rem"
+                onclick="confirmarDecisao('homologada')">
+          <i class="bi bi-check-circle me-1"></i>Homologar
+        </button>
+        {% endif %}
+        {% if pode_reabrir_hom %}
+        <button type="submit" form="form-reabrir-hom"
+                class="btn btn-warning btn-sm fw-semibold px-3"
+                style="font-size:.875rem"
+                onclick="return confirm('Deseja reabrir a homologação do setor {{ setor_raiz.nome }}? A decisão atual será descartada.')">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Reabrir Homologação
+        </button>
+        {% endif %}
+        <a href="{% url 'homologacao_list' %}" class="btn btn-outline-secondary btn-sm px-3 ms-auto"
+           style="font-size:.875rem">
+          <i class="bi bi-arrow-left me-1"></i>Voltar
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+  <input type="hidden" name="status" id="campo-status" value="">
+</form>
+
+{% if pode_reabrir_hom %}
+<form id="form-reabrir-hom" method="post" action="{% url 'reabrir_homologacao' irp.pk %}">
+  {% csrf_token %}
+</form>
+{% endif %}
+
+<div class="modal fade" id="modalConfirmar" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-1">
+        <h6 class="modal-title fw-bold" id="modal-titulo"></h6>
+        <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-1">
+        <p id="modal-texto" class="mb-0"></p>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-sm fw-semibold" id="btn-confirmar-decisao">Confirmar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+const fmtBRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+function syncStickyColumns() {
+  const table = document.getElementById('tabela-hom-itens');
+  const firstRow = table?.querySelector('tbody tr');
+  if (!firstRow) return;
+  
+  const cells = firstRow.querySelectorAll('.sticky-col');
+  let currentLeft = 0;
+  
+  cells.forEach((cell, idx) => {
+    const width = cell.offsetWidth;
+    const leftPx = currentLeft + 'px';
+    const colIndex = idx + 1;
+    
+    table.querySelectorAll(`tr th:nth-child(${colIndex}), tr td:nth-child(${colIndex})`).forEach(el => {
+      if (el.classList.contains('sticky-col')) el.style.left = leftPx;
+    });
+    
+    if (idx === cells.length - 1) {
+      table.querySelectorAll(`tr th:nth-child(${colIndex}), tr td:nth-child(${colIndex})`).forEach(el => {
+        el.classList.add('last-sticky');
+      });
+    }
+    currentLeft += width;
+  });
+
+  const partialWrapper = document.getElementById('partial-scrollbar-wrapper');
+  const tableContainer = document.getElementById('real-table-container');
+  const dummy = document.getElementById('partial-scrollbar-dummy');
+  
+  if (partialWrapper && tableContainer && dummy) {
+    partialWrapper.style.marginLeft = (currentLeft - 1) + 'px';
+    dummy.style.width = (table.scrollWidth - currentLeft) + 'px';
+    
+    partialWrapper.onscroll = () => {
+      if (!window._syncingScroll) {
+        window._syncingScroll = true;
+        tableContainer.scrollLeft = partialWrapper.scrollLeft;
+        window._syncingScroll = false;
+      }
+    };
+    tableContainer.onscroll = () => {
+      if (!window._syncingScroll) {
+        window._syncingScroll = true;
+        partialWrapper.scrollLeft = tableContainer.scrollLeft;
+        window._syncingScroll = false;
+      }
+    };
+  }
+}
+
+function recalcularTotais() {
+  const footerResp = {};
+  let footerGrupoTotal = 0;
+  let footerHomQty = 0;
+  let footerHomVal = 0;
+
+  document.querySelectorAll('tr.hom-item-row').forEach(function (row) {
+    const precoUnit = parseFloat(row.querySelector('td[data-valor]')?.dataset.valor || 0);
+    let rowGrupoQty = 0;
+
+    row.querySelectorAll('.resp-col[data-qty]').forEach(function (td) {
+      if (td.style.display === 'none') return;
+      const qty = parseFloat(td.dataset.qty) || 0;
+      const setorPk = td.dataset.setor;
+      rowGrupoQty += qty;
+      footerResp[setorPk] = (footerResp[setorPk] || 0) + qty;
+    });
+
+    const spanTotalGrupo = row.querySelector('.col-total-grupo');
+    if (spanTotalGrupo) {
+      spanTotalGrupo.textContent = rowGrupoQty > 0 ? rowGrupoQty : '0';
+      footerGrupoTotal += rowGrupoQty;
+    }
+
+    const inputQtyHom = row.querySelector('.col-qtd-homologada');
+    let qtyHom = 0;
+    if (inputQtyHom.tagName === 'INPUT') {
+      qtyHom = parseFloat(inputQtyHom.value) || 0;
+    } else {
+      qtyHom = parseFloat(inputQtyHom.textContent) || 0;
+    }
+
+    const valHom = qtyHom * precoUnit;
+    row.querySelector('.col-val-homologada').textContent = valHom > 0 ? fmtBRL.format(valHom) : 'R$ 0,00';
+    footerHomQty += qtyHom;
+    footerHomVal += valHom;
+  });
+
+  document.querySelectorAll('.footer-resp-total').forEach(function (td) {
+    const setorPk = td.dataset.setor;
+    const total = footerResp[setorPk] || 0;
+    td.textContent = total > 0 ? total : '0';
+  });
+
+  document.querySelector('.footer-grupo-total').textContent = footerGrupoTotal > 0 ? footerGrupoTotal : '0';
+  document.querySelector('.footer-hom-qty').textContent = footerHomQty > 0 ? footerHomQty : '0';
+  document.querySelector('.footer-hom-val').textContent = fmtBRL.format(footerHomVal);
+}
+
+(function () {
+  const sel = document.getElementById('filtro-subsetor');
+  if (!sel) return;
+  const ts = new TomSelect(sel, {
+    plugins: ['remove_button'],
+    placeholder: 'Todos os subsetores',
+    onInitialize() { this.wrapper.style.minWidth = '220px'; },
+    onChange() {
+      const selecionados = ts.getValue();
+      const todos = selecionados.length === 0;
+      document.querySelectorAll('.resp-col').forEach(function (el) {
+        const pk = el.dataset.setor;
+        el.style.display = (todos || selecionados.includes(pk)) ? '' : 'none';
+      });
+      recalcularTotais();
+      syncStickyColumns();
+    },
+  });
+})();
+
+(function () {
+  let sortCol = -1, sortAsc = true;
+  document.querySelectorAll('#tabela-hom-itens th.sortable').forEach(function (th) {
+    th.addEventListener('click', function () {
+      const col = Array.from(this.parentNode.children).indexOf(this);
+      sortAsc = sortCol === col ? !sortAsc : true;
+      sortCol = col;
+      document.querySelectorAll('#tabela-hom-itens th.sortable').forEach(h => h.classList.remove('asc', 'desc'));
+      this.classList.add(sortAsc ? 'asc' : 'desc');
+      const tbody = document.getElementById('tbody-hom-itens');
+      const rows = Array.from(tbody.querySelectorAll('tr.hom-item-row'));
+      rows.sort((a, b) => {
+        const va = (a.children[col]?.dataset.sort ?? '').toLowerCase();
+        const vb = (b.children[col]?.dataset.sort ?? '').toLowerCase();
+        const cmp = isNaN(va) || isNaN(vb) ? va.localeCompare(vb, 'pt-BR') : parseFloat(va) - parseFloat(vb);
+        return sortAsc ? cmp : -cmp;
+      });
+      rows.forEach(tr => tbody.appendChild(tr));
+      syncStickyColumns();
+    });
+  });
+})();
+
+let decisaoEscolhida = '';
+function confirmarDecisao(status) {
+  decisaoEscolhida = status;
+  const titulo = document.getElementById('modal-titulo');
+  const texto = document.getElementById('modal-texto');
+  const btn = document.getElementById('btn-confirmar-decisao');
+  titulo.textContent = 'Confirmar Homologação';
+  texto.textContent = 'Deseja homologar as respostas do setor?';
+  btn.className = 'btn btn-sm fw-semibold btn-success';
+  new bootstrap.Modal(document.getElementById('modalConfirmar')).show();
+}
+
+document.getElementById('btn-confirmar-decisao').addEventListener('click', function () {
+  document.getElementById('campo-status').value = decisaoEscolhida;
+  document.getElementById('form-hom').submit();
+});
+
+/* Thead fixo via transform — acompanha scroll da página abaixo do card-header */
+(function () {
+  const thead = document.querySelector('#tabela-hom-itens thead');
+  const container = document.getElementById('real-table-container');
+  const card = container?.closest('.card');
+  const headerBar = card?.querySelector('.card-header');
+  if (!thead || !container || !headerBar) return;
+
+  function fixThead() {
+    const headerBottom = headerBar.getBoundingClientRect().bottom;
+    const containerTop = container.getBoundingClientRect().top;
+    const containerBottom = container.getBoundingClientRect().bottom;
+    const theadH = thead.offsetHeight;
+
+    if (containerTop < headerBottom && containerBottom > headerBottom + theadH) {
+      const offset = headerBottom - containerTop;
+      thead.style.transform = 'translateY(' + offset + 'px)';
+      thead.style.position = 'relative';
+      thead.style.zIndex = '1500';
+    } else {
+      thead.style.transform = '';
+      thead.style.position = '';
+    }
+  }
+
+  window.addEventListener('scroll', fixThead, { passive: true });
+  fixThead();
+})();
+
+document.addEventListener('DOMContentLoaded', function () {
+  recalcularTotais();
+  syncStickyColumns();
+  window.addEventListener('resize', syncStickyColumns);
+  document.querySelectorAll('.col-qtd-homologada').forEach(function (el) {
+    if (el.tagName === 'INPUT') el.addEventListener('input', recalcularTotais);
+  });
+});
+</script>
+{% endblock %}

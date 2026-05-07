@@ -1,0 +1,54 @@
+{#
+  Inclusão reutilizável para o par de selects setor pai → subsetor (HTMX).
+
+  Variáveis esperadas no contexto (passadas via {% include ... with ... %}):
+    campo      — prefixo do campo, ex: "setor_lotacao" ou "setor_localizacao"
+    label      — texto do label do setor pai
+    label_sub  — texto do label do subsetor
+    obrigatorio — "true" ou "" para required
+    pai_sel    — objeto Setor selecionado como pai (ou None)
+    sub_sel    — objeto Setor selecionado como subsetor (ou None)
+    sub_qs     — queryset/lista de subsetores disponíveis (filhos do pai_sel)
+    setores_pai — queryset dos setores raiz
+    disabled   — "true" para desabilitar os selects
+#}
+{% with campo_pai=campo|add:"_pai" campo_sub=campo|add:"_sub" id_pai="sel-"|add:campo|add:"-pai" id_sub="sel-"|add:campo|add:"-sub" %}
+<div class="mb-0">
+  <label class="form-label form-label-sm fw-semibold mb-0">
+    {{ label }}{% if obrigatorio %} <span class="text-danger">*</span>{% endif %}
+  </label>
+  <select name="{{ campo_pai }}"
+          id="{{ id_pai }}"
+          class="form-select form-select-sm mb-1"
+          {% if obrigatorio %}required{% endif %}
+          {% if disabled == "true" %}disabled{% endif %}
+          hx-get="{% url 'subsetores_ajax' %}"
+          hx-trigger="change"
+          hx-target="#{{ id_sub }}"
+          hx-include="this">
+    <option value="">--- Selecione o setor ---</option>
+    {% for s in setores_pai %}
+      <option value="{{ s.pk }}" {% if pai_sel.pk == s.pk %}selected{% endif %}>
+        {{ s.nome }}
+      </option>
+    {% endfor %}
+  </select>
+</div>
+
+<div class="mb-0">
+  <label class="form-label form-label-sm fw-semibold mb-0">
+    {{ label_sub }} <span class="text-muted small fw-normal">(opcional)</span>
+  </label>
+  <select name="{{ campo_sub }}"
+          id="{{ id_sub }}"
+          class="form-select form-select-sm"
+          {% if disabled == "true" %}disabled{% endif %}>
+    <option value="">--- Nenhum (usar setor pai) ---</option>
+    {% for s in sub_qs %}
+      <option value="{{ s.pk }}" {% if sub_sel.pk == s.pk %}selected{% endif %}>
+        {{ s.nome }}
+      </option>
+    {% endfor %}
+  </select>
+</div>
+{% endwith %}

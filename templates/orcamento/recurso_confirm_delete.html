@@ -1,0 +1,30 @@
+{% extends 'base_orcamento.html' %}
+{% load humanize %}
+
+{% block title %}Excluir Recurso{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm border-danger border-top border-3">
+      <div class="card-body p-4 text-center">
+        <i class="bi bi-exclamation-triangle-fill text-danger fs-1 mb-3"></i>
+        <h5 class="fw-bold">Confirmar exclusão</h5>
+        <p class="text-muted small">
+          Deseja excluir o recurso <strong>{{ object.origem_recurso }}</strong>
+          ({{ object.ano_fiscal }} — {{ object.get_natureza_display }})
+          no valor de <strong>R$ {{ object.valor_orcamentario|floatformat:2|intcomma }}</strong>?
+        </p>
+        <p class="text-danger small">Esta ação não pode ser desfeita. Despesas e transferências associadas perderão a referência.</p>
+        <form method="post" class="d-flex justify-content-center gap-2 mt-3">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger">
+            <i class="bi bi-trash me-1"></i>Sim, excluir
+          </button>
+          <a href="{% url 'recurso_list' %}" class="btn btn-light">Cancelar</a>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

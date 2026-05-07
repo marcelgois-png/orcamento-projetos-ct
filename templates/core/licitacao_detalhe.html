@@ -1,0 +1,679 @@
+{% extends 'base.html' %}
+{% load core_tags %}
+{% block title %}Licitação – {{ irp.titulo }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ── Contêiner com scroll horizontal ───────────────────────────────── */
+  .table-scroll-container {
+    overflow-x: auto;
+    position: relative;
+    border-radius: 8px 8px 0 0;
+  }
+  .table-scroll-container::-webkit-scrollbar { width: 6px; height: 6px; }
+  .table-scroll-container::-webkit-scrollbar-thumb { background: #dee2e6; border-radius: 3px; }
+
+  /* ── Tabela ─────────────────────────────────────────────────────────── */
+  .tabela-lic {
+    table-layout: fixed;
+    width: max-content;
+    min-width: 100%;
+    margin-bottom: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .tabela-lic th, .tabela-lic td {
+    font-size: 0.675rem !important;
+    line-height: 1.2;
+    white-space: nowrap;
+    vertical-align: middle !important;
+  }
+
+  /* ── Colunas fixas (sticky) ─────────────────────────────────────────── */
+  .sticky-col {
+    position: sticky !important;
+    background-color: #fff !important;
+    z-index: 1010;
+    border-right: 1px solid #dee2e6;
+  }
+  .last-sticky {
+    border-right: 2px solid #dee2e6 !important;
+    box-shadow: 4px 0 8px rgba(0,0,0,0.05);
+  }
+
+  /* ── Cabeçalho ──────────────────────────────────────────────────────── */
+  thead th {
+    z-index: 1500;
+    background-color: #f8f9fa !important;
+    border-bottom: 2px solid #dee2e6 !important;
+    font-size: 0.6rem !important;
+    white-space: normal !important;
+    vertical-align: middle !important;
+    text-align: center;
+  }
+  thead th.sticky-col {
+    z-index: 1520;
+    box-shadow: inset 0 -1px 0 #dee2e6;
+  }
+
+  /* ── Rodapé fixo ────────────────────────────────────────────────────── */
+  tfoot td {
+    position: sticky !important;
+    bottom: 0;
+    z-index: 1500;
+    background-color: #f8f9fa !important;
+    border-top: 2px solid #dee2e6 !important;
+  }
+  tfoot td.sticky-col  { z-index: 1520 !important; }
+  tfoot td.tfoot-spacer { border-right: none !important; box-shadow: none !important; }
+
+  /* ── Larguras de coluna ─────────────────────────────────────────────── */
+  .col-num  { width: 50px  !important; min-width: 50px  !important; max-width: 50px  !important; }
+  .col-desc { width: 200px !important; min-width: 200px !important; max-width: 200px !important; }
+  .col-desc .desc-text {
+    display: block; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; max-width: 190px; cursor: help;
+  }
+  .col-unid { width: 110px !important; min-width: 110px !important; max-width: 110px !important; }
+  .col-qty  { width: 110px !important; min-width: 110px !important; max-width: 110px !important; }
+  .col-preco{ width: 110px !important; min-width: 110px !important; max-width: 110px !important; }
+  .col-situ { width: 110px !important; min-width: 110px !important; max-width: 110px !important; }
+
+  /* ── Barra de rolagem parcial ────────────────────────────────────────── */
+  #partial-scrollbar-wrapper {
+    overflow-x: auto; overflow-y: hidden;
+    height: 14px; background: #f1f3f5;
+    border: 1px solid #dee2e6; border-top: none;
+    border-radius: 0 0 8px 8px;
+  }
+  #partial-scrollbar-dummy { height: 1px; }
+
+  /* ── Sortable ───────────────────────────────────────────────────────── */
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { background-color: #e9ecef; }
+  th.sortable .sort-icon { font-size: .6rem; opacity: .35; margin-left: 3px; }
+  th.sortable.asc  .sort-icon::after { content: '▲'; opacity: 1; color: #0d6efd; }
+  th.sortable.desc .sort-icon::after { content: '▼'; opacity: 1; color: #0d6efd; }
+  th.sortable:not(.asc):not(.desc) .sort-icon::after { content: '⇅'; }
+
+  /* ── Inline edit preço ───────────────────────────────────────────────── */
+  .cell-preco { cursor: pointer; }
+  .cell-preco .edit-input {
+    display: none; width: 100%; text-align: right;
+    font-family: 'Open Sans', sans-serif; font-size: .72rem;
+    border: 1px solid #86b7fe; border-radius: 4px; padding: 2px 6px; outline: none;
+  }
+  .cell-preco:hover .display-val { text-decoration: underline dotted #adb5bd; }
+  .cell-preco.editing .display-val { display: none; }
+  .cell-preco.editing .edit-input  { display: block; }
+  .placeholder-edit { color: #adb5bd; font-style: italic; font-size: .68rem; }
+
+  /* ── Situação select ─────────────────────────────────────────────────── */
+  .situacao-select {
+    font-family: 'Open Sans', sans-serif !important;
+    font-size: .68rem !important;
+    padding: 2px 4px !important;
+  }
+
+  /* ── Isolar card da tabela ──────────────────────────────────────────── */
+  #card-tabela-lic { box-shadow: none; border: none; }
+  #card-tabela-lic .card-body { padding: 0; }
+
+  .ts-dropdown { z-index: 2000 !important; }
+  
+  /* ── Status select styling ────────────────────────────────────────── */
+  .status-pregao-select {
+    font-weight: 400;
+    font-size: .875rem;
+    border-radius: 8px;
+    padding: 8px 40px 8px 16px;
+    cursor: pointer;
+    border: 1px solid #dee2e6;
+    background-color: #fff !important;
+    color: #495057 !important;
+    transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+    background-position: right 12px center;
+    background-size: 14px;
+    width: auto;
+    min-width: 180px;
+    display: inline-block;
+    box-shadow: none;
+    text-transform: none;
+    letter-spacing: normal;
+  }
+  
+  .status-pregao-select.situ-licitado   { background-color: #d1e7dd; color: #0a3622; border-color: #a3cfbb; }
+  .status-pregao-select.situ-em-lic       { background-color: #cfe2ff; color: #084298; border-color: #b6d4fe; }
+  .status-pregao-select.situ-preparacao { background-color: #fff3cd; color: #664d03; border-color: #ffecb5; }
+  
+  .status-pregao-select:hover {
+    border-color: #b1b5b9;
+    background-color: #fff !important;
+  }
+  
+  .item-situ-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: .7rem; font-weight: 600; text-transform: uppercase;
+  }
+  .item-situ-preparacao { background: #fffbe6; color: #664d03; border: 1px solid #ffecb5; }
+  .item-situ-em-lic { background: #e6f7ff; color: #0050b3; border: 1px solid #91d5ff; }
+  .item-situ-licitado { background: #f6ffed; color: #389e0d; border: 1px solid #b7eb8f; }
+  .item-situ-nao-lic { background: #f5f5f5; color: #595959; border: 1px solid #d9d9d9; }
+
+  .status-pregao-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    outline: none;
+  }
+  
+  .btn-validar-status {
+    height: 38px;
+    padding: 0 16px;
+    font-weight: 600;
+    font-size: .8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-radius: 6px;
+    transition: all .2s;
+  }
+  
+  .row-validation-error {
+    background-color: #fff1f0 !important;
+    outline: 2px solid #ff4d4f;
+    outline-offset: -2px;
+    transition: all .3s;
+  }
+  .row-validation-error td {
+    color: #cf1322 !important;
+  }
+  
+  /* Status-dependent border indicators (optional, to keep status clear) */
+  .status-pregao-select.situ-licitado   { border-left: 5px solid #198754; }
+  .status-pregao-select.situ-em-lic       { border-left: 5px solid #0d6efd; }
+  .status-pregao-select.situ-preparacao { border-left: 5px solid #ffc107; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Título (mesmo padrão da lista) -->
+<div class="mb-3">
+  <h4 class="fw-bold mb-0" style="font-family:'Open Sans',sans-serif; display:flex; align-items:center; gap:8px;">
+    <i class="bi bi-send-check text-primary"></i>Licitações
+  </h4>
+</div>
+
+<!-- Badge IRP (mesmo estilo da homologação) -->
+<div class="mb-4">
+  <div style="display:inline-flex; align-items:center; gap:12px; font-family:'Open Sans',sans-serif;
+              border-radius:8px; padding:8px 18px; background:var(--ct-primary); color:#fff;
+              box-shadow:0 2px 4px rgba(0,0,0,.1)">
+    <span class="text-uppercase fw-bold" style="font-size:.72rem; letter-spacing:.12em">IRP</span>
+    <span class="fw-bold" style="font-size:1.1rem; line-height:1">{{ irp.titulo }}</span>
+    {% if irp.descricao %}
+    <span class="fw-semibold" style="font-size:.85rem; letter-spacing:.02em; border-left:1px solid rgba(255,255,255,.3); padding-left:12px">
+      {{ irp.descricao }}
+    </span>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Linha de informações -->
+<div class="mb-4 d-flex flex-wrap align-items-center gap-4" style="font-size:.875rem; font-family:'Open Sans',sans-serif; color:#495057">
+  <div class="d-flex align-items-center gap-2">
+    <span class="fw-bold text-dark" style="font-size: .85rem;">Status:</span>
+    <div id="container-status-pregao" class="d-flex align-items-center gap-2">
+      <select id="select-status-pregao" class="form-select form-select-sm status-pregao-select {% if pregao.status == 'homologado' %}situ-licitado{% elif pregao.status == 'em_licitacao' %}situ-em-lic{% else %}situ-preparacao{% endif %}"
+              data-pregao="{{ pregao.pk }}">
+        <option value="em_preparacao" {% if pregao.status == 'em_preparacao' %}selected{% endif %}>Em preparação</option>
+        <option value="em_licitacao"  {% if pregao.status == 'em_licitacao'  %}selected{% endif %}>Em licitação</option>
+        <option value="homologado"    {% if pregao.status == 'homologado'    %}selected{% endif %}>Homologado</option>
+      </select>
+      <button type="button" id="btn-validar-status" class="btn btn-primary btn-sm btn-validar-status shadow-sm">
+        <i class="bi bi-check-all me-1"></i>Validar
+      </button>
+    </div>
+  </div>
+  {% if pregao.numero %}
+  <div class="d-flex align-items-center gap-2">
+    <span class="fw-bold text-dark">Pregão:</span>
+    <span class="text-primary fw-semibold">{{ pregao.numero }}</span>
+    {% if pregao.link_acompanhamento %}
+    <a href="{{ pregao.link_acompanhamento }}" target="_blank" class="text-decoration-none text-muted small">
+      <i class="bi bi-box-arrow-up-right"></i> Acompanhar
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+  <a href="{% url 'licitacao_list' %}" class="btn btn-outline-secondary btn-sm px-3 ms-auto" style="font-size:.8rem">
+    <i class="bi bi-arrow-left me-1"></i>Voltar
+  </a>
+</div>
+
+<!-- Card da tabela -->
+<div class="card border-0 shadow-sm mb-4" id="card-tabela-lic">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center py-2 sticky-top"
+       style="top: var(--tb-h); z-index: 1999; box-shadow: 0 2px 4px rgba(0,0,0,.05);">
+    <span class="fw-semibold" style="font-family:'Open Sans',sans-serif;font-size:.875rem">
+      <i class="bi bi-list-ul me-1 text-muted"></i>Itens da Licitação — {{ itens_data|length }} item(ns)
+    </span>
+    <span class="text-muted small fw-normal" style="font-family:'Open Sans',sans-serif">
+      Clique em <span class="badge" style="background:#fffbe6;color:#664d03;border:1px solid #ffc107;font-size:.7rem">Preço Licitado</span> para editar · Enter para salvar
+    </span>
+  </div>
+
+  <div class="card-body p-0">
+    <div class="table-scroll-container" id="real-table-container">
+      <table class="table table-hover tabela-lic" id="tabela-lic-itens">
+        <thead class="table-light">
+          <tr>
+            <!-- Sticky -->
+            <th class="sortable text-center sticky-col col-num" data-col="0">N. <span class="sort-icon"></span></th>
+            <th class="sortable text-start sticky-col col-desc" data-col="1">Descrição <span class="sort-icon"></span></th>
+            <th class="text-center sortable sticky-col col-unid" data-col="2">Unid. <span class="sort-icon"></span></th>
+            <th class="text-center sortable sticky-col col-qty" data-col="3">Qtd. Homologada <span class="sort-icon"></span></th>
+            <!-- Scrollable -->
+            <th class="text-center col-preco">Preço Ref.</th>
+            <th class="text-center col-preco">Preço Licitado</th>
+            <th class="text-center col-preco">Valor Homologado</th>
+            <th class="text-center col-situ">Situação</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-lic-itens">
+          {% for row in itens_data %}
+          <tr class="lic-item-row" data-item-num="{{ row.item.numero }}">
+            <!-- Sticky -->
+            <td class="text-center text-muted fw-semibold sticky-col col-num"
+                data-sort="{{ row.item.numero|stringformat:'06d' }}">{{ row.item.numero }}</td>
+            <td class="text-start sticky-col col-desc" data-sort="{{ row.item.descricao|lower }}">
+              <span class="desc-text fw-semibold text-dark"
+                    title="{{ row.item.descricao }}">
+                {{ row.item.descricao }}
+              </span>
+            </td>
+            <td class="text-center sticky-col col-unid" data-sort="{{ row.item.unidade|lower }}">
+              {{ row.item.unidade }}
+            </td>
+            <td class="text-center sticky-col col-qty fw-semibold {% if row.total_qty %}text-primary{% else %}text-muted{% endif %}"
+                data-sort="{% if row.total_qty %}{{ row.total_qty|stringformat:'020.4f' }}{% else %}00000000000000000000.0000{% endif %}"
+                data-qty="{{ row.total_qty|default:0 }}">
+              {% if row.total_qty %}{{ row.total_qty }}{% else %}—{% endif %}
+            </td>
+            <!-- Scrollable -->
+            <td class="text-end text-muted col-preco" data-valor-ref="{{ row.item.preco_estimado|stringformat:'f' }}">
+              {{ row.item.preco_estimado|brl }}
+            </td>
+            <!-- Preço Licitado — inline edit -->
+            <td class="text-end col-preco cell-preco" data-item="{{ row.item.pk }}"
+                data-valor-licitado="{% if row.pi.preco_licitado %}{{ row.pi.preco_licitado|stringformat:'f' }}{% else %}{% endif %}">
+              <span class="display-val">
+                {% if row.pi.preco_licitado %}
+                  {{ row.pi.preco_licitado|brl }}
+                {% else %}
+                  <span class="placeholder-edit">{{ row.item.preco_estimado|brl }} *</span>
+                {% endif %}
+              </span>
+              <input class="edit-input" type="number" step="0.01" min="0"
+                     value="{% if row.pi.preco_licitado %}{{ row.pi.preco_licitado }}{% endif %}"
+                     placeholder="{{ row.item.preco_estimado }}">
+            </td>
+            <!-- Valor Homologado -->
+            <td class="text-end fw-semibold col-preco valor-hom" data-item="{{ row.item.pk }}">
+              {% if row.valor_total %}{{ row.valor_total|brl }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <!-- Situação -->
+            <td class="text-center col-situ">
+              <select class="form-select form-select-sm situacao-select" data-item="{{ row.item.pk }}"
+                      style="margin:0 auto; max-width:122px">
+                <option value="em_preparacao" {% if row.pi.situacao == 'em_preparacao' %}selected{% endif %}>Em preparação</option>
+                <option value="em_licitacao"  {% if row.pi.situacao == 'em_licitacao'  %}selected{% endif %}>Em licitação</option>
+                <option value="licitado"      {% if row.pi.situacao == 'licitado'      %}selected{% endif %}>Licitado</option>
+                <option value="nao_licitado"  {% if row.pi.situacao == 'nao_licitado'  %}selected{% endif %}>Não Licitado</option>
+              </select>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="8" class="text-center text-muted py-5" style="font-family:'Open Sans',sans-serif">
+              <i class="bi bi-inbox fs-2 d-block mb-2 opacity-25"></i>
+              Nenhum item cadastrado.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot class="table-light fw-bold">
+          <tr>
+            <td class="sticky-col tfoot-spacer col-num"></td>
+            <td class="sticky-col tfoot-spacer col-desc"></td>
+            <td class="text-end py-2 sticky-col col-unid" style="font-weight:700">TOTAL:</td>
+            <td class="text-center sticky-col col-qty last-sticky footer-qty-total">0</td>
+            <td class="tfoot-spacer col-preco"></td>
+            <td class="tfoot-spacer col-preco"></td>
+            <td class="text-end col-preco footer-val-total">R$ 0,00</td>
+            <td class="tfoot-spacer col-situ"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <!-- Barra de rolagem parcial -->
+    <div id="partial-scrollbar-wrapper" class="d-none d-md-block">
+      <div id="partial-scrollbar-dummy"></div>
+    </div>
+
+    <!-- Rodapé informativo -->
+    <div class="px-3 py-2 bg-white border-top" style="font-size:.68rem;font-family:'Open Sans',sans-serif;color:#6c757d">
+      <i class="bi bi-info-circle me-1"></i>
+      Passe o cursor sobre a <strong>descrição</strong> para ver o texto completo.
+      <span class="text-muted ms-3">* Preço de referência (preço licitado não confirmado)</span>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const fmtBRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+const CSRF   = document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+
+/* ── Sticky columns ─────────────────────────────────────────────────────── */
+function syncStickyColumns() {
+  const table = document.getElementById('tabela-lic-itens');
+  const firstRow = table?.querySelector('tbody tr');
+  if (!firstRow) return;
+
+  const cells = firstRow.querySelectorAll('.sticky-col');
+  let currentLeft = 0;
+
+  cells.forEach(function (cell, idx) {
+    const leftPx = currentLeft + 'px';
+    const colIndex = idx + 1;
+    table.querySelectorAll('tr th:nth-child(' + colIndex + '), tr td:nth-child(' + colIndex + ')').forEach(function (el) {
+      if (el.classList.contains('sticky-col')) el.style.left = leftPx;
+    });
+    if (idx === cells.length - 1) {
+      table.querySelectorAll('tr th:nth-child(' + colIndex + '), tr td:nth-child(' + colIndex + ')').forEach(function (el) {
+        el.classList.add('last-sticky');
+      });
+    }
+    currentLeft += cell.offsetWidth;
+  });
+
+  /* Barra parcial */
+  const partialWrapper   = document.getElementById('partial-scrollbar-wrapper');
+  const tableContainer   = document.getElementById('real-table-container');
+  const dummy            = document.getElementById('partial-scrollbar-dummy');
+  if (partialWrapper && tableContainer && dummy) {
+    partialWrapper.style.marginLeft = (currentLeft - 1) + 'px';
+    dummy.style.width = (table.scrollWidth - currentLeft) + 'px';
+    partialWrapper.onscroll = function () {
+      if (!window._syncingScroll) { window._syncingScroll = true; tableContainer.scrollLeft = partialWrapper.scrollLeft; window._syncingScroll = false; }
+    };
+    tableContainer.onscroll = function () {
+      if (!window._syncingScroll) { window._syncingScroll = true; partialWrapper.scrollLeft = tableContainer.scrollLeft; window._syncingScroll = false; }
+    };
+  }
+}
+
+/* ── Thead fixo via transform ───────────────────────────────────────────── */
+(function () {
+  const thead      = document.querySelector('#tabela-lic-itens thead');
+  const container  = document.getElementById('real-table-container');
+  const card       = container?.closest('.card');
+  const headerBar  = card?.querySelector('.card-header');
+  if (!thead || !container || !headerBar) return;
+
+  function fixThead() {
+    const headerBottom   = headerBar.getBoundingClientRect().bottom;
+    const containerTop   = container.getBoundingClientRect().top;
+    const containerBottom = container.getBoundingClientRect().bottom;
+    const theadH         = thead.offsetHeight;
+    if (containerTop < headerBottom && containerBottom > headerBottom + theadH) {
+      thead.style.transform = 'translateY(' + (headerBottom - containerTop) + 'px)';
+      thead.style.position  = 'relative';
+      thead.style.zIndex    = '1500';
+    } else {
+      thead.style.transform = '';
+      thead.style.position  = '';
+    }
+  }
+  window.addEventListener('scroll', fixThead, { passive: true });
+  fixThead();
+})();
+
+/* ── Totais (tfoot) ─────────────────────────────────────────────────────── */
+function recalcularTotais() {
+  let totalQty = 0, totalVal = 0;
+  document.querySelectorAll('tr.lic-item-row').forEach(function (row) {
+    const qtyTd   = row.querySelector('.col-qty[data-qty]');
+    const valorTd = row.querySelector('.valor-hom');
+    if (qtyTd)  totalQty += parseFloat(qtyTd.dataset.qty) || 0;
+    if (valorTd) {
+      const txt = valorTd.textContent.trim().replace(/[^\d,]/g, '').replace(',', '.');
+      totalVal += parseFloat(txt) || 0;
+    }
+  });
+  const fQty = document.querySelector('.footer-qty-total');
+  const fVal = document.querySelector('.footer-val-total');
+  if (fQty) fQty.textContent = totalQty > 0 ? totalQty : '0';
+  if (fVal) fVal.textContent = fmtBRL.format(totalVal);
+}
+
+/* ── Ordenação ──────────────────────────────────────────────────────────── */
+(function () {
+  let sortCol = -1, sortAsc = true;
+  document.querySelectorAll('#tabela-lic-itens th.sortable').forEach(function (th) {
+    th.addEventListener('click', function () {
+      const col = Array.from(this.parentNode.children).indexOf(this);
+      sortAsc = sortCol === col ? !sortAsc : true;
+      sortCol = col;
+      document.querySelectorAll('#tabela-lic-itens th.sortable').forEach(function (h) { h.classList.remove('asc', 'desc'); });
+      this.classList.add(sortAsc ? 'asc' : 'desc');
+      const tbody = document.getElementById('tbody-lic-itens');
+      Array.from(tbody.querySelectorAll('tr.lic-item-row'))
+        .sort(function (a, b) {
+          const va = (a.children[col]?.dataset.sort ?? '').toLowerCase();
+          const vb = (b.children[col]?.dataset.sort ?? '').toLowerCase();
+          const cmp = isNaN(va) || isNaN(vb) ? va.localeCompare(vb, 'pt-BR') : parseFloat(va) - parseFloat(vb);
+          return sortAsc ? cmp : -cmp;
+        })
+        .forEach(function (tr) { tbody.appendChild(tr); });
+      syncStickyColumns();
+    });
+  });
+})();
+
+/* ── API helper ─────────────────────────────────────────────────────────── */
+function salvarItem(itemPk, campo, valor) {
+  return fetch('/licitacao/item/' + itemPk + '/salvar/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF },
+    body: new URLSearchParams({ campo, valor })
+  });
+}
+
+function salvarPregao(pregaoPk, campo, valor) {
+  return fetch(`/licitacao/pregao/${pregaoPk}/salvar/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF },
+    body: new URLSearchParams({ campo, valor })
+  });
+}
+
+function updateStatusUI(novoStatus) {
+  const sel = document.getElementById('select-status-pregao');
+  if (!sel) return;
+  sel.value = novoStatus;
+  sel.classList.remove('situ-licitado', 'situ-em-lic', 'situ-preparacao');
+  if (novoStatus === 'homologado') sel.classList.add('situ-licitado');
+  else if (novoStatus === 'em_licitacao') sel.classList.add('situ-em-lic');
+  else sel.classList.add('situ-preparacao');
+  
+  lockUnlockItems(novoStatus);
+  hideInvalidOptions(novoStatus);
+}
+
+function hideInvalidOptions(status) {
+  document.querySelectorAll('.situacao-select').forEach(sel => {
+    const optPrep = sel.querySelector('option[value="em_preparacao"]');
+    const optLic  = sel.querySelector('option[value="licitado"]');
+    const optNLic = sel.querySelector('option[value="nao_licitado"]');
+    
+    if (status === 'em_licitacao') {
+      if (optPrep) optPrep.style.display = 'none';
+      if (optLic)  optLic.style.display  = 'block';
+      if (optNLic) optNLic.style.display = 'block';
+    } else if (status === 'em_preparacao') {
+      if (optPrep) optPrep.style.display = 'block';
+      if (optLic)  optLic.style.display  = 'none';
+      if (optNLic) optNLic.style.display = 'none';
+    } else {
+      // Homologado ou outros
+      [optPrep, optLic, optNLic].forEach(o => { if(o) o.style.display='block'; });
+    }
+  });
+}
+
+function lockUnlockItems(status) {
+  const isReadOnly = (status === 'em_preparacao' || status === 'homologado');
+  
+  // Bloqueia sitação selects
+  document.querySelectorAll('.situacao-select').forEach(sel => {
+    sel.disabled = isReadOnly;
+    // Se em licitação, permite apenas licitado/não licitado?
+    // O usuário disse: "Em licitação - todos os itens ... podem ser alterados individualmente para Licitado ou Não Licitado"
+    // Então se status === 'em_licitacao', habilitamos.
+  });
+  
+  // Bloqueia preços
+  document.querySelectorAll('.cell-preco').forEach(cell => {
+    if (isReadOnly) {
+      cell.classList.add('readonly-cell');
+      cell.style.pointerEvents = 'none';
+      cell.style.background = '#f9fafb';
+    } else {
+      cell.classList.remove('readonly-cell');
+      cell.style.pointerEvents = 'auto';
+      cell.style.background = '';
+    }
+  });
+}
+
+/* ── Inline edit: Preço Licitado ────────────────────────────────────────── */
+document.querySelectorAll('.cell-preco').forEach(function (cell) {
+  const input   = cell.querySelector('.edit-input');
+  const display = cell.querySelector('.display-val');
+  const itemPk  = cell.dataset.item;
+
+  cell.addEventListener('click', function () {
+    if (cell.classList.contains('editing')) return;
+    cell.classList.add('editing');
+    input.focus(); input.select();
+  });
+
+  function confirmar() {
+    cell.classList.remove('editing');
+    const valor = input.value.trim();
+    salvarItem(itemPk, 'preco_licitado', valor).then(function () {
+      if (valor) {
+        display.innerHTML = fmtBRL.format(parseFloat(valor));
+        cell.dataset.valorLicitado = valor;
+      } else {
+        const ref = cell.closest('tr').querySelector('.col-preco[data-valor-ref]')?.dataset.valorRef || '0';
+        display.innerHTML = '<span class="placeholder-edit">' + fmtBRL.format(parseFloat(ref)) + ' *</span>';
+        cell.dataset.valorLicitado = '';
+      }
+      /* Recalcula valor homologado da linha */
+      const qtyTd   = cell.closest('tr').querySelector('.col-qty[data-qty]');
+      const qty     = qtyTd ? parseFloat(qtyTd.dataset.qty) || 0 : 0;
+      const preco   = valor ? parseFloat(valor) : parseFloat(cell.closest('tr').querySelector('[data-valor-ref]')?.dataset.valorRef || '0');
+      const valHom  = cell.closest('tr').querySelector('.valor-hom');
+      if (valHom) valHom.innerHTML = (qty && preco) ? fmtBRL.format(qty * preco) : '<span class="text-muted">—</span>';
+      recalcularTotais();
+    });
+  }
+
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter')  { e.preventDefault(); confirmar(); }
+    if (e.key === 'Escape') { cell.classList.remove('editing'); }
+  });
+  input.addEventListener('blur', confirmar);
+});
+
+/* ── Situação select ─────────────────────────────────────────────────────── */
+document.querySelectorAll('.situacao-select').forEach(function (sel) {
+  sel.addEventListener('change', function () {
+    salvarItem(this.dataset.item, 'situacao', this.value).then(resp => {
+      if (resp.ok && resp.status !== 204) {
+        resp.json().then(data => {
+          if (data && data.status) updateStatusUI(data.status);
+        });
+      }
+    });
+  });
+});
+
+/* ── Status Pregão Select ───────────────────────────────────────────────── */
+const statusPregaoSelect = document.getElementById('select-status-pregao');
+const btnValidarStatus   = document.getElementById('btn-validar-status');
+
+if (statusPregaoSelect && btnValidarStatus) {
+  // Removido listener de change automático (o usuário quer o botão validar)
+  
+  btnValidarStatus.addEventListener('click', function() {
+    const val = statusPregaoSelect.value;
+    const pk = statusPregaoSelect.dataset.pregao;
+    
+    if (!confirm('Deseja validar a alteração de status para: ' + statusPregaoSelect.options[statusPregaoSelect.selectedIndex].text + '?')) return;
+    
+    btnValidarStatus.disabled = true;
+    btnValidarStatus.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processando...';
+    
+    // Remove destaques anteriores
+    document.querySelectorAll('.row-validation-error').forEach(r => r.classList.remove('row-validation-error'));
+    
+    salvarPregao(pk, 'validar_status', val).then(resp => {
+      if (resp.ok) {
+        window.location.reload();
+      } else {
+        resp.json().then(data => {
+          if (data.error === 'itens_pendentes') {
+            const list = data.itens.join(', ');
+            alert('Não é possível homologar: existem itens com situação pendente (Em licitação ou Em preparação).\n\nItens afetados: ' + list);
+            
+            // Marca os itens
+            data.itens.forEach(num => {
+              const row = document.querySelector(`tr.lic-item-row[data-item-num="${num}"]`);
+              if (row) {
+                row.classList.add('row-validation-error');
+              }
+            });
+            
+            // Scroll para o primeiro
+            const target = document.querySelector('.row-validation-error');
+            if (target) {
+              target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          } else {
+            alert('Erro ao validar status.');
+          }
+        }).catch(() => alert('Erro ao validar status.'));
+        
+        btnValidarStatus.disabled = false;
+        btnValidarStatus.innerHTML = '<i class="bi bi-check-all me-1"></i>Validar';
+      }
+    });
+  });
+}
+
+/* ── Init ───────────────────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', function () {
+  recalcularTotais();
+  syncStickyColumns();
+  window.addEventListener('resize', syncStickyColumns);
+  
+  // Inicializa estado de bloqueio
+  const currentStatus = document.getElementById('select-status-pregao')?.value;
+  if (currentStatus) lockUnlockItems(currentStatus);
+});
+</script>
+{% endblock %}

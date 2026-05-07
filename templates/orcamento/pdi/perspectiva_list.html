@@ -1,0 +1,349 @@
+{% extends 'base_orcamento.html' %}
+
+{% block title %}PDI — Gestão Estratégica{% endblock %}
+
+{% block content %}
+<style>
+  :root { --pdi-accent: #c6543c; --pdi-light: #FDF0ED; --pdi-muted: #f8f3f2; }
+
+  .pdi-card { border: 1px solid #e8d8d5; border-radius: 10px; overflow: hidden; margin-bottom: 1rem; }
+  .pdi-perspectiva-header {
+    background: linear-gradient(90deg, #c6543c 0%, #9e3c2a 100%);
+    color: #fff;
+    padding: .55rem 1rem;
+    display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+  }
+  .pdi-perspectiva-header .badge-codigo {
+    background: rgba(255,255,255,.2); color:#fff; font-size:.7rem;
+    padding:2px 7px; border-radius:4px; font-weight:600; white-space:nowrap;
+  }
+  .pdi-perspectiva-header .pdi-nome { font-weight:700; font-size:.95rem; flex:1; }
+
+  .pdi-objetivo-row {
+    background: var(--pdi-muted);
+    border-top: 1px solid #ede0dd;
+    padding: .45rem 1rem .45rem 1.25rem;
+    display: flex; align-items: flex-start; gap: .5rem;
+  }
+  .pdi-objetivo-row .badge-obj { background:#c6543c; color:#fff; font-size:.65rem; padding:2px 6px; border-radius:4px; white-space:nowrap; margin-top:2px; }
+  .pdi-obj-nome { font-size:.85rem; font-weight:600; color:#2d1a17; flex:1; line-height:1.4; }
+
+  .pdi-indicadores-block { padding:.3rem 1rem .3rem 2.5rem; background:#fff; border-top:1px solid #f0e5e3; }
+  .pdi-indicador-row {
+    display:flex; align-items:center; gap:.5rem;
+    padding:.28rem 0; border-bottom:1px solid #f5eeec; font-size:.8rem; color:#3d2520;
+  }
+  .pdi-indicador-row:last-child { border-bottom:none; }
+  .pdi-ind-codigo { color:#999; font-size:.72rem; white-space:nowrap; }
+  .pdi-ind-nome { flex:1; }
+  .pdi-ind-und { background:#f0e5e3; color:#c6543c; font-size:.65rem; padding:1px 6px; border-radius:4px; white-space:nowrap; }
+
+  .btn-pdi { font-size:.72rem; padding:2px 7px; border-radius:4px; line-height:1.4; cursor:pointer; }
+  .btn-pdi-edit  { border:1px solid #c8a8a0; color:#c6543c; background:transparent; }
+  .btn-pdi-edit:hover { background:#c6543c; color:#fff; border-color:#c6543c; }
+  .btn-pdi-del   { border:1px solid #f5c6c2; color:#c0392b; background:transparent; }
+  .btn-pdi-del:hover { background:#c0392b; color:#fff; border-color:#c0392b; }
+  .btn-pdi-add   { border:1px solid #b8d4b8; color:#256325; background:transparent; }
+  .btn-pdi-add:hover { background:#256325; color:#fff; border-color:#256325; }
+
+  /* Botões dentro do cabeçalho da perspectiva — branco sobre fundo translúcido */
+  .pdi-perspectiva-header .btn-pdi,
+  .pdi-perspectiva-header .btn-pdi-del,
+  .pdi-perspectiva-header .btn-pdi-add {
+    background: rgba(255,255,255,.15);
+    border-color: rgba(255,255,255,.4);
+    color: #fff;
+  }
+  .pdi-perspectiva-header .btn-pdi:hover,
+  .pdi-perspectiva-header .btn-pdi-del:hover,
+  .pdi-perspectiva-header .btn-pdi-add:hover {
+    background: rgba(255,255,255,.28);
+    border-color: rgba(255,255,255,.75);
+    color: #fff;
+  }
+
+  .empty-level { color:#aaa; font-size:.8rem; font-style:italic; padding:.4rem 0; }
+
+  .pdi-add-obj-row {
+    background:#fdf7f6; border-top:1px solid #ede0dd;
+    padding:.35rem 1rem .35rem 1.25rem;
+  }
+  .pdi-add-ind-row {
+    background:#fafafa; padding:.28rem 0;
+    border-top:1px solid #f0e5e3;
+  }
+</style>
+
+<!-- ── Cabeçalho ─────────────────────────────────────────── -->
+<div class="d-flex align-items-start justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0 fw-bold" style="color:#c6543c">PDI — Plano de Desenvolvimento Institucional</h4>
+    <small class="text-muted">Perspectiva &rsaquo; Objetivo Estratégico &rsaquo; Indicador</small>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'pdi_modelo_xlsx' %}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-file-earmark-excel me-1"></i>Planilha Modelo
+    </a>
+    <button class="btn btn-sm btn-outline-secondary"
+            data-bs-toggle="modal" data-bs-target="#importModal">
+      <i class="bi bi-upload me-1"></i>Importar PDI
+    </button>
+    <button class="btn btn-sm text-white fw-semibold"
+            style="background:#c6543c"
+            hx-get="{% url 'pdi_perspectiva_create' %}"
+            hx-target="#pdi-modal-body"
+            hx-swap="innerHTML"
+            hx-on::after-request="bootstrap.Modal.getOrCreateInstance(document.getElementById('pdiModal')).show()">
+      <i class="bi bi-plus-lg me-1"></i>Nova Perspectiva
+    </button>
+  </div>
+</div>
+
+<!-- ── Alertas de sessão ─────────────────────────────────── -->
+{% if messages %}
+{% for msg in messages %}
+<div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible fade show py-2 small mb-3" role="alert">
+  {{ msg }}
+  <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert"></button>
+</div>
+{% endfor %}
+{% endif %}
+
+<!-- ── Estatísticas rápidas ──────────────────────────────── -->
+{% if perspectivas %}
+<div class="d-flex gap-3 mb-3 flex-wrap">
+  <span class="badge rounded-pill text-white px-3 py-2" style="background:#c6543c; font-size:.8rem">
+    {{ perspectivas|length }} perspectiva{{ perspectivas|length|pluralize }}
+  </span>
+  <span class="badge rounded-pill bg-secondary px-3 py-2" style="font-size:.8rem">
+    {% with total=0 %}
+    {% for p in perspectivas %}{% for o in p.objetivos.all %}{% endfor %}{% endfor %}
+    {% endwith %}
+    {{ perspectivas|length }} perspectivas cadastradas
+  </span>
+</div>
+{% endif %}
+
+<!-- ── Árvore PDI ────────────────────────────────────────── -->
+{% for p in perspectivas %}
+<div class="pdi-card shadow-sm">
+
+  <!-- Perspectiva header -->
+  <div class="pdi-perspectiva-header">
+    <span class="badge-codigo">{{ p.codigo|default:"—" }}</span>
+    <span class="pdi-nome">{{ p.nome }}</span>
+    <div class="d-flex gap-1">
+      <button class="btn-pdi btn-pdi-edit"
+              hx-get="{% url 'pdi_perspectiva_edit' p.pk %}"
+              hx-target="#pdi-modal-body"
+              hx-swap="innerHTML"
+              hx-on::after-request="bootstrap.Modal.getOrCreateInstance(document.getElementById('pdiModal')).show()"
+              title="Editar perspectiva">
+        <i class="bi bi-pencil"></i>
+      </button>
+      <button class="btn-pdi btn-pdi-del"
+              onclick="confirmarExclusao('{{ p.nome|escapejs }}', '{% url 'pdi_perspectiva_delete' p.pk %}')"
+              title="Excluir perspectiva">
+        <i class="bi bi-trash3"></i>
+      </button>
+      <button class="btn-pdi btn-pdi-add"
+              hx-get="{% url 'pdi_objetivo_create' %}?perspectiva={{ p.pk }}"
+              hx-target="#pdi-modal-body"
+              hx-swap="innerHTML"
+              hx-on::after-request="bootstrap.Modal.getOrCreateInstance(document.getElementById('pdiModal')).show()"
+              title="Adicionar objetivo estratégico">
+        <i class="bi bi-plus-lg me-1"></i>Objetivo
+      </button>
+    </div>
+  </div>
+
+  <!-- Objetivos -->
+  {% for obj in p.objetivos.all %}
+  <div class="pdi-objetivo-row">
+    <span class="badge-obj">{{ obj.codigo|default:"OE" }}</span>
+    <div class="pdi-obj-nome flex-grow-1">{{ obj.nome }}</div>
+    <div class="d-flex gap-1 flex-shrink-0">
+      <button class="btn-pdi btn-pdi-edit"
+              hx-get="{% url 'pdi_objetivo_edit' obj.pk %}"
+              hx-target="#pdi-modal-body"
+              hx-swap="innerHTML"
+              hx-on::after-request="bootstrap.Modal.getOrCreateInstance(document.getElementById('pdiModal')).show()"
+              title="Editar objetivo">
+        <i class="bi bi-pencil"></i>
+      </button>
+      <button class="btn-pdi btn-pdi-del"
+              onclick="confirmarExclusao('{{ obj.nome|truncatechars:60|escapejs }}', '{% url 'pdi_objetivo_delete' obj.pk %}')"
+              title="Excluir objetivo">
+        <i class="bi bi-trash3"></i>
+      </button>
+      <button class="btn-pdi btn-pdi-add"
+              hx-get="{% url 'pdi_indicador_create' %}?objetivo={{ obj.pk }}"
+              hx-target="#pdi-modal-body"
+              hx-swap="innerHTML"
+              hx-on::after-request="bootstrap.Modal.getOrCreateInstance(document.getElementById('pdiModal')).show()"
+              title="Adicionar indicador">
+        <i class="bi bi-plus-lg me-1"></i>Indicador
+      </button>
+    </div>
+  </div>
+
+  <!-- Indicadores do objetivo -->
+  {% if obj.indicadores.all %}
+  <div class="pdi-indicadores-block">
+    {% for ind in obj.indicadores.all %}
+    <div class="pdi-indicador-row">
+      <i class="bi bi-bar-chart-line text-muted" style="font-size:.75rem; flex-shrink:0"></i>
+      <span class="pdi-ind-codigo">{{ ind.codigo|default:"—" }}</span>
+      <span class="pdi-ind-nome">{{ ind.nome }}</span>
+      {% if ind.unidade_medida %}
+      <span class="pdi-ind-und">{{ ind.unidade_medida }}</span>
+      {% endif %}
+      <div class="d-flex gap-1 ms-1 flex-shrink-0">
+        <button class="btn-pdi btn-pdi-edit"
+                hx-get="{% url 'pdi_indicador_edit' ind.pk %}"
+                hx-target="#pdi-modal-body"
+                hx-swap="innerHTML"
+                hx-on::after-request="bootstrap.Modal.getOrCreateInstance(document.getElementById('pdiModal')).show()"
+                title="Editar indicador">
+          <i class="bi bi-pencil"></i>
+        </button>
+        <button class="btn-pdi btn-pdi-del"
+                onclick="confirmarExclusao('{{ ind.nome|truncatechars:60|escapejs }}', '{% url 'pdi_indicador_delete' ind.pk %}')"
+                title="Excluir indicador">
+          <i class="bi bi-trash3"></i>
+        </button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="pdi-indicadores-block">
+    <div class="empty-level">Nenhum indicador cadastrado.</div>
+  </div>
+  {% endif %}
+
+  {% empty %}
+  <div class="px-3 py-2 text-muted small fst-italic" style="background:#fff">
+    Nenhum objetivo estratégico cadastrado para esta perspectiva.
+  </div>
+  {% endfor %}
+
+</div>
+{% empty %}
+<div class="text-center text-muted py-5">
+  <i class="bi bi-diagram-3 d-block mb-2" style="font-size:3rem; opacity:.2; color:#c6543c"></i>
+  <p class="mb-3">Nenhuma perspectiva PDI cadastrada.</p>
+  <div class="d-flex gap-2 justify-content-center flex-wrap">
+    <button class="btn btn-sm text-white" style="background:#c6543c"
+            hx-get="{% url 'pdi_perspectiva_create' %}"
+            hx-target="#pdi-modal-body"
+            hx-swap="innerHTML"
+            hx-on::after-request="bootstrap.Modal.getOrCreateInstance(document.getElementById('pdiModal')).show()">
+      <i class="bi bi-plus-lg me-1"></i>Cadastrar primeira perspectiva
+    </button>
+    <button class="btn btn-sm btn-outline-secondary"
+            data-bs-toggle="modal" data-bs-target="#importModal">
+      <i class="bi bi-upload me-1"></i>Importar via planilha
+    </button>
+  </div>
+</div>
+{% endfor %}
+
+
+<!-- ── Modal HTMX (formulários de criação/edição) ────────── -->
+<div class="modal fade" id="pdiModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:520px">
+    <div class="modal-content shadow" id="pdi-modal-body">
+      <!-- conteúdo carregado via HTMX -->
+    </div>
+  </div>
+</div>
+
+
+<!-- ── Modal de confirmação de exclusão ──────────────────── -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+    <div class="modal-content shadow">
+      <div class="modal-header py-2 px-3" style="background:#c0392b">
+        <h6 class="modal-title text-white mb-0 fw-semibold">
+          <i class="bi bi-exclamation-triangle me-1"></i>Confirmar exclusão
+        </h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-3 px-3 small">
+        Tem certeza que deseja excluir <strong id="delete-item-name"></strong>?
+        <br><span class="text-muted">Todos os registros filhos também serão removidos.</span>
+      </div>
+      <div class="modal-footer py-2 px-3 bg-light">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <form id="delete-form" method="post">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm btn-danger">
+            <i class="bi bi-trash3 me-1"></i>Excluir
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ── Modal de importação ───────────────────────────────── -->
+<div class="modal fade" id="importModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:520px">
+    <div class="modal-content shadow">
+      <div class="modal-header py-2 px-3" style="background:#c6543c">
+        <h6 class="modal-title text-white mb-0 fw-semibold">
+          <i class="bi bi-upload me-1"></i>Importar estrutura PDI via planilha
+        </h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{% url 'pdi_importar' %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="modal-body py-3 px-3">
+          <p class="small text-muted mb-3">
+            A planilha deve conter as colunas <strong>Perspectiva</strong>,
+            <strong>Objetivo Estratégico</strong> e <strong>Indicador</strong>.
+            Itens já existentes não serão duplicados.
+          </p>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold mb-1">Arquivo (.xlsx)</label>
+            <input type="file" name="arquivo" accept=".xlsx,.xls" class="form-control form-control-sm" required>
+          </div>
+          <div class="alert alert-warning py-2 px-3 small mb-0">
+            <i class="bi bi-info-circle me-1"></i>
+            A importação cria os registros inexistentes e ignora duplicatas.
+            Não remove itens já cadastrados.
+          </div>
+        </div>
+        <div class="modal-footer py-2 px-3 bg-light">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <a href="{% url 'pdi_modelo_xlsx' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-file-earmark-excel me-1"></i>Baixar modelo
+          </a>
+          <button type="submit" class="btn btn-sm text-white fw-semibold" style="background:#c6543c">
+            <i class="bi bi-upload me-1"></i>Importar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+<script>
+function confirmarExclusao(nome, url) {
+  document.getElementById('delete-item-name').textContent = '"' + nome + '"';
+  document.getElementById('delete-form').action = url;
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteModal')).show();
+}
+
+// Fecha o pdiModal e recarrega após salvar via HTMX redirect
+document.body.addEventListener('htmx:beforeRequest', function (e) {
+  const trigger = e.detail.elt;
+  if (trigger && trigger.closest('#pdi-modal-body')) {
+    // formulário dentro do modal — nada a fazer
+  }
+});
+</script>
+{% endblock %}

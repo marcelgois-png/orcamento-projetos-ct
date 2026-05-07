@@ -1,0 +1,80 @@
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-irp_db}
+      MYSQL_USER: ${DB_USER:-irp_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - static_files:/app/staticfiles
+      - media_files:/app/media
+      - app_logs:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=5)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - static_files:/app/staticfiles:ro
+      - media_files:/app/media:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - web
+
+  # Backup diário do MySQL (mantém os 7 últimos dumps)
+  db-backup:
+    image: mysql:8.0
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MYSQL_PWD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - ./backups:/backups
+    entrypoint: >
+      sh -c '
+        while true; do
+          ts=$$(date +%Y%m%d_%H%M%S);
+          echo "[$$ts] Iniciando backup...";
+          mysqldump -h db -u root --single-transaction --quick --lock-tables=false ${DB_NAME:-irp_db} | gzip > /backups/irp_$$ts.sql.gz;
+          echo "[$$ts] Backup concluído: irp_$$ts.sql.gz";
+          # Mantém apenas os 7 mais recentes
+          ls -1t /backups/irp_*.sql.gz 2>/dev/null | tail -n +8 | xargs -r rm -f;
+          sleep 86400;
+        done
+      '
+
+volumes:
+  mysql_data:
+  static_files:
+  media_files:
+  app_logs:

@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% load core_tags %}
+
+{% block title %}Homologar - {{ irp.titulo }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .table-scroll-container {
+    overflow-x: auto;
+    position: relative;
+    scrollbar-width: none;
+    border-radius: 8px 8px 0 0;
+  }
+
+  .tabela-hom {
+    table-layout: fixed;
+    width: max-content;
+    min-width: 100%;
+    margin-bottom: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .sticky-col {
+    position: sticky !important;
+    background-color: #fff !important;
+    z-index: 1010;
+    border-right: 1px solid #dee2e6;
+  }
+
+  thead th {
+    position: sticky !important;
+    top: 0;
+    z-index: 1500;
+    background-color: #f8f9fa !important;
+  }
+
+  tfoot td {
+    position: sticky !important;
+    bottom: 0;
+    z-index: 1500;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<h4>Homologacoes</h4>
+{{ irp.titulo }}
+{% endblock %}

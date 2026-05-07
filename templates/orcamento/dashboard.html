@@ -1,0 +1,614 @@
+{% extends 'base_orcamento.html' %}
+{% load l10n %}
+
+{% block title %}Dashboard Público — Execução Orçamentária{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+<style>
+  :root { --dark: #1e2a3a; --accent: #f0957d; --fh: 31px; }
+
+  .main-content { padding: 0; }
+
+  .tb-badge {
+    background: rgba(255,255,255,.15); border-radius: 20px;
+    padding: 3px 12px; font-size: .72rem; color: rgba(255,255,255,.9);
+  }
+
+  /* KPI CARDS */
+  .kpi-dark { background: var(--dark); color: #fff; border-radius: 10px; padding: 1.2rem 1.5rem; }
+  .kpi-dark .kpi-label { font-size: .72rem; opacity: .6; text-transform: uppercase; letter-spacing: .08em; margin-bottom: .3rem; }
+  .kpi-dark .kpi-value { font-size: 1.6rem; font-weight: 700; }
+  .kpi-dark .kpi-sub { font-size: .72rem; opacity: .5; margin-top: .15rem; }
+
+  .kpi-light { background: #fff; border-radius: 10px; padding: 1.2rem 1.5rem; box-shadow: 0 1px 6px rgba(0,0,0,.07); }
+  .kpi-light .kpi-label { font-size: .72rem; color: #888; text-transform: uppercase; letter-spacing: .08em; margin-bottom: .3rem; }
+  .kpi-light .kpi-value { font-size: 1.6rem; font-weight: 700; color: #c6543c; }
+  .kpi-light .kpi-sub { font-size: .72rem; color: #aaa; margin-top: .15rem; }
+
+  /* GAUGE */
+  .gauge-wrap { background: var(--dark); border-radius: 10px; padding: 1.5rem; text-align: center; color: #fff; }
+  .gauge-wrap canvas { max-width: 220px; }
+  .gauge-title { font-size: .72rem; opacity: .6; text-transform: uppercase; letter-spacing: .08em; margin-bottom: .75rem; }
+  .gauge-value { font-size: 1.4rem; font-weight: 700; margin-top: -.5rem; }
+  .gauge-pct { font-size: .8rem; opacity: .6; }
+
+  /* CHARTS */
+  .chart-card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 6px rgba(0,0,0,.07); height: 100%; }
+  .chart-title { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #555; margin-bottom: 1rem; }
+  .chart-scroll { overflow-y: auto; max-height: 320px; }
+  .chart-dynamic-wrap { position: relative; min-height: 200px; }
+
+  /* FILTER BAR */
+  .filter-bar {
+    background: #fff; border-radius: 10px; padding: .65rem 1.1rem;
+    box-shadow: 0 1px 6px rgba(0,0,0,.07); display: flex; align-items: center; gap: 10px;
+  }
+  .filter-bar-title {
+    display: flex; align-items: center; gap: 5px; flex-shrink: 0;
+    font-size: .68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .09em; color: #555; white-space: nowrap;
+    padding-right: 10px; border-right: 2px solid #e9ecef;
+  }
+  .filter-bar .filter-group { display: flex; flex-direction: column; gap: 3px; flex: 1 1 0; min-width: 0; }
+  .filter-bar .filter-label {
+    font-size: .68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; color: #888; white-space: nowrap;
+  }
+  .filter-bar select.form-select { font-size: .8rem; height: var(--fh); padding-top: 0; padding-bottom: 0; width: 100%; }
+  #filter-ano + .ts-wrapper { width: 100%; }
+  #filter-ano + .ts-wrapper .ts-control {
+    height: var(--fh); min-height: var(--fh); max-height: var(--fh);
+    overflow: hidden; flex-wrap: nowrap; gap: 3px;
+    font-size: .8rem; padding: 0 2.25rem 0 .5rem; align-items: center;
+    border: 1px solid #dee2e6; border-radius: .375rem; background-color: #fff;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+    background-repeat: no-repeat; background-position: right .5rem center; background-size: 16px 12px; box-shadow: none;
+  }
+  #filter-ano + .ts-wrapper.focus .ts-control { border-color: #86b7fe; box-shadow: 0 0 0 .25rem rgba(13,110,253,.25); }
+  #filter-ano + .ts-wrapper .ts-control input { font-size: .8rem; min-width: 30px; }
+  #filter-ano + .ts-wrapper .ts-control .item {
+    background: #1e2a3a; color: #fff; border-radius: 20px;
+    padding: 1px 6px; font-size: .72rem; font-weight: 600;
+    white-space: nowrap; flex-shrink: 0; line-height: 1.4;
+  }
+  #filter-ano + .ts-wrapper .ts-control .item .remove { color: rgba(255,255,255,.75); margin-left: 2px; padding: 0; }
+  #filter-ano + .ts-wrapper .ts-dropdown { font-size: .8rem; }
+  .filter-bar .filter-btns { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+  .filter-bar .filter-btns .btn {
+    height: var(--fh); font-size: .8rem;
+    display: flex; align-items: center; justify-content: center;
+    white-space: nowrap; padding: 0 14px;
+  }
+
+  /* TABLE */
+  .table-search { font-size: .8rem; }
+  .tbl-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,.07); overflow: hidden; }
+  .tbl-card .table { margin-bottom: 0; font-size: .82rem; }
+  .tbl-card .table th { background: var(--dark); color: rgba(255,255,255,.85); font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; border: none; }
+  .tbl-card .table td { vertical-align: middle; border-color: #f0f0f0; }
+
+  /* CROSS TABLE */
+  .cross-table { font-size: .78rem; }
+  .cross-table th { background: var(--dark); color: rgba(255,255,255,.85); text-align: right; }
+  .cross-table th:first-child { text-align: left; }
+  .cross-table td { text-align: right; }
+  .cross-table td:first-child { text-align: left; font-weight: 600; }
+  .cross-table tfoot td { background: #f8f9fa; font-weight: 700; }
+
+  .section-title {
+    font-size: .65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .1em; color: #999; margin: 1.5rem 0 .75rem;
+  }
+
+  /* PDI accordion */
+  .pdi-persp-item { border-bottom: 1px solid #f0f0f0; }
+  .pdi-persp-item:last-child { border-bottom: none; }
+  .pdi-persp-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: .6rem .75rem; cursor: pointer; transition: background .12s;
+    user-select: none;
+  }
+  .pdi-persp-header:hover { background: #f8f9fa; }
+  .pdi-persp-header.pdi-no-obj { cursor: default; }
+  .pdi-persp-name {
+    flex: 0 0 210px; font-size: .8rem; font-weight: 600;
+    color: #1e2a3a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .pdi-bar-track {
+    flex: 1 1 auto; height: 16px; background: #edf0f3; border-radius: 4px; overflow: hidden;
+  }
+  .pdi-bar-fill { height: 100%; border-radius: 4px; background: #344759; transition: width .5s ease; }
+  .pdi-bar-fill.obj { background: #c6543c; }
+  .pdi-bar-fill.sem { background: #adb5bd; }
+  .pdi-amount {
+    flex: 0 0 120px; text-align: right; font-size: .75rem;
+    font-weight: 700; color: #1e2a3a; white-space: nowrap;
+  }
+  .pdi-chevron { flex-shrink: 0; font-size: .7rem; color: #888; transition: transform .2s; }
+  .pdi-persp-header[aria-expanded="true"] .pdi-chevron { transform: rotate(180deg); }
+  .pdi-obj-list { background: #fafbfc; }
+  .pdi-obj-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: .45rem .75rem .45rem 2.2rem;
+    border-bottom: 1px solid #f4f4f4;
+  }
+  .pdi-obj-row:last-child { border-bottom: none; }
+  .pdi-obj-name {
+    flex: 0 0 198px; font-size: .75rem; color: #555;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .pdi-empty { padding: 2rem; text-align: center; color: #aaa; font-size: .82rem; }
+</style>
+{% endblock %}
+
+{% block topbar_badge %}
+<span class="tb-badge"><i class="bi bi-circle-fill me-1" style="color:var(--accent);font-size:.5rem"></i>Dados públicos</span>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 py-3">
+
+  <!-- BARRA DE FILTROS HORIZONTAL -->
+  <form method="get" id="filter-form" class="mb-3">
+    <div class="filter-bar">
+
+      <div class="filter-bar-title">
+        <span><i class="bi bi-funnel"></i>Filtros</span>
+      </div>
+
+      <div class="filter-group" id="filter-ano-wrap">
+        <span class="filter-label">Ano do Exercício</span>
+        <select id="filter-ano" name="ano" multiple placeholder="Todos os anos">
+          {% for a in anos_disponiveis %}
+          <option value="{{ a }}" {% if a|stringformat:'s' in anos_selecionados %}selected{% endif %}>{{ a }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <span class="filter-label">Origem do Recurso</span>
+        <select name="origem" class="form-select form-select-sm">
+          <option value="">Todas</option>
+          {% for o in origens %}
+          <option value="{{ o }}" {% if filtros.origem == o %}selected{% endif %}>{{ o }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <span class="filter-label">Natureza</span>
+        <select name="natureza" class="form-select form-select-sm">
+          <option value="">Todas</option>
+          {% for n in naturezas %}
+          <option value="{{ n }}" {% if filtros.natureza == n %}selected{% endif %}>{{ n }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <span class="filter-label">Rubrica</span>
+        <select name="rubrica" class="form-select form-select-sm">
+          <option value="">Todas</option>
+          {% for val, label in rubricas %}
+          <option value="{{ val }}" {% if filtros.rubrica == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <span class="filter-label">Setor</span>
+        <select name="setor" class="form-select form-select-sm">
+          <option value="">Todos</option>
+          {% for s in setores %}
+          <option value="{{ s.pk }}" {% if filtros.setor == s.pk|stringformat:'s' %}selected{% endif %}>{{ s.sigla }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-btns">
+        <button type="submit" class="btn btn-sm" style="background:#c6543c;color:#fff;">
+          <i class="bi bi-check-lg me-1"></i>Aplicar
+        </button>
+        <a href="{% url 'orcamento_dashboard' %}" class="btn btn-sm btn-light">
+          <i class="bi bi-x-lg me-1"></i>Limpar
+        </a>
+      </div>
+
+    </div>
+  </form>
+
+  <div class="row g-3">
+    <div class="col-12">
+
+      <!-- KPIs -->
+      <div class="row g-3 mb-3 align-items-stretch">
+        <div class="col-sm-6 col-xl-3 d-flex">
+          <div class="kpi-dark w-100">
+            <div class="kpi-label">Recursos Ainda Não Executados pelo Centro de Tecnologia</div>
+            <div class="kpi-value {% if kpi.saldo < 0 %}text-danger{% endif %}">{{ kpi.saldo_fmt }}</div>
+            <div class="kpi-sub">saldo atual dos recursos filtrados</div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-xl-3 d-flex">
+          <div class="kpi-light w-100">
+            <div class="kpi-label">Recursos Orçamentários Disponibilizados ao CT</div>
+            <div class="kpi-value">{{ kpi.total_orcado_fmt }}</div>
+            <div class="kpi-sub">soma das dotações filtradas</div>
+          </div>
+        </div>
+        <div class="col-xl-6">
+          <div class="kpi-light h-100 d-flex flex-column justify-content-between" style="padding: 1.4rem 1.6rem;">
+            <div>
+              <div class="kpi-label" style="margin-bottom:.5rem;">Evolução da Execução Orçamentária</div>
+              <div style="font-size:2rem;font-weight:700;color:#1e2a3a;line-height:1.1;">
+                {{ kpi.pct_execucao|floatformat:1 }}%
+              </div>
+              <div style="font-size:.78rem;color:#888;margin-top:.3rem;">
+                {{ kpi.total_comprometido_fmt }} comprometidos de {{ kpi.total_orcado_fmt }}
+              </div>
+            </div>
+            <div style="margin-top:1.2rem;">
+              <div style="background:#f0f2f5;border:1px solid #e2e6ea;border-radius:999px;height:10px;overflow:hidden;">
+                {% if kpi.pct_execucao > 0 %}
+                <div style="height:100%;border-radius:999px;background:linear-gradient(90deg,#c6543c,#f0957d);width:{{ kpi.pct_execucao|unlocalize }}%;transition:width .6s ease;"></div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GRÁFICOS LINHA 1 -->
+      <div class="row g-3 mb-3">
+        <div class="col-lg-6">
+          <div class="chart-card">
+            <div class="chart-title">Natureza do Recurso por Ano</div>
+            <canvas id="areaChart" height="200"></canvas>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="chart-card">
+            <div class="chart-title">Disponibilidade por Setor de Destinação</div>
+            <div class="chart-scroll">
+              <div class="chart-dynamic-wrap" id="setorChartWrap">
+                <canvas id="setorChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GRÁFICOS LINHA 2 -->
+      <div class="row g-3 mb-3">
+        <div class="col-lg-6">
+          <div class="chart-card">
+            <div class="chart-title">Disponibilidade por Rubrica</div>
+            <div class="chart-scroll">
+              <div class="chart-dynamic-wrap" id="rubricaChartWrap">
+                <canvas id="rubricaChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="chart-card">
+            <div class="chart-title">Execução Orçamentária por PDI</div>
+            <div class="chart-scroll" id="pdi-accordion-wrap">
+              <div id="pdi-accordion"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TABELA CRUZADA -->
+      <p class="section-title">Origem do Recurso × Ano</p>
+      <div class="tbl-card mb-3">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover cross-table mb-0">
+            <thead>
+              <tr>
+                <th>Origem do Recurso</th>
+                {% for a in tabela_cruzada.anos %}<th>{{ a }}</th>{% endfor %}
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in tabela_cruzada.linhas %}
+              <tr>
+                <td>{{ row.origem }}</td>
+                {% for v in row.valores %}
+                <td>{% if v %}R$ {{ v|floatformat:2 }}{% else %}—{% endif %}</td>
+                {% endfor %}
+                <td class="fw-bold">R$ {{ row.total|floatformat:2 }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="99" class="text-center text-muted py-3">Sem dados.</td></tr>
+              {% endfor %}
+            </tbody>
+            {% if tabela_cruzada.totais %}
+            <tfoot>
+              <tr>
+                <td>TOTAL</td>
+                {% for t in tabela_cruzada.totais %}<td>R$ {{ t|floatformat:2 }}</td>{% endfor %}
+                <td>R$ {{ tabela_cruzada.grand_total|floatformat:2 }}</td>
+              </tr>
+            </tfoot>
+            {% endif %}
+          </table>
+        </div>
+      </div>
+
+      <p class="section-title">Recursos Disponíveis</p>
+      <div class="tbl-card mb-3">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead>
+              <tr>
+                <th class="px-3">Ano</th>
+                <th>Setor</th>
+                <th>Origem</th>
+                <th>Natureza</th>
+                <th>Rubrica</th>
+                <th class="text-end">Orçado</th>
+                <th class="text-end">Disponível</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in tabela_recursos %}
+              <tr>
+                <td class="px-3">{{ r.ano }}</td>
+                <td>{{ r.setor }}</td>
+                <td>{{ r.origem }}</td>
+                <td>{{ r.natureza }}</td>
+                <td>{{ r.rubrica|default:"—" }}</td>
+                <td class="text-end text-nowrap">R$ {{ r.orcado|floatformat:2 }}</td>
+                <td class="text-end text-nowrap fw-semibold">R$ {{ r.saldo|floatformat:2 }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="7" class="text-center text-muted py-3">Nenhum recurso encontrado.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TABELA PESQUISÁVEL -->
+      <p class="section-title">Bens Adquiridos e Serviços Contratados</p>
+      <div class="tbl-card">
+        <div class="px-3 pt-3 pb-2">
+          <input type="text" id="tbl-search" class="form-control form-control-sm table-search"
+            placeholder="Pesquisar por discriminação...">
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0" id="tbl-bens">
+            <thead>
+              <tr>
+                <th class="px-3">Discriminação</th>
+                <th class="text-end">Comprometido</th>
+                <th class="text-end">Qtde</th>
+                <th>Nota de Empenho</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for d in tabela_bens %}
+              <tr>
+                <td class="px-3">{{ d.discriminacao }}</td>
+                <td class="text-end text-nowrap fw-semibold">R$ {{ d.valor_comprometido|floatformat:2 }}</td>
+                <td class="text-end">{{ d.quantidade|floatformat:0 }}</td>
+                <td>{{ d.nota_empenho|default:"—" }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="4" class="text-center text-muted py-3">Nenhuma despesa encontrada.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+new TomSelect('#filter-ano', {
+  plugins: ['remove_button'],
+  placeholder: 'Todos os anos',
+  onInitialize() { this.wrapper.style.width = '100%'; },
+});
+
+const dadosArea    = {{ dados_area|safe }};
+const dadosSetor   = {{ dados_setor|safe }};
+const dadosRubrica = {{ dados_rubrica|safe }};
+const dadosPdi     = {{ dados_pdi|safe }};
+const totalOrcado  = {{ total_orcado_json|safe }};
+const totalComp    = {{ total_comprometido_json|safe }};
+
+const DARK  = '#344759';
+const LIGHT = '#a8bbd0';
+const GREEN = '#c6543c';
+
+Chart.defaults.font.family = "'Open Sans', sans-serif";
+Chart.defaults.font.size   = 11;
+Chart.register(ChartDataLabels);
+Chart.defaults.plugins.datalabels.display = false;
+
+function fmtK(v) {
+  const abs = Math.abs(v);
+  if (abs >= 1000000) return 'R$ ' + (v / 1000000).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'M';
+  if (abs >= 1000)    return 'R$ ' + (v / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + 'k';
+  return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+function fmtFull(v) {
+  return 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+const tooltipCallbacks = {
+  label: ctx => ' ' + ctx.dataset.label + ': ' + fmtFull(ctx.parsed.y ?? ctx.parsed.x),
+};
+function setBarChartHeight(wrapId, labels) {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  const count = Array.isArray(labels) ? labels.length : 0;
+  wrap.style.height = Math.max(count * 40 + 60, 200) + 'px';
+}
+
+new Chart(document.getElementById('areaChart'), {
+  type: 'line',
+  data: {
+    labels: dadosArea.anos,
+    datasets: [
+      { label: 'Capital', data: dadosArea.capital, borderColor: DARK, backgroundColor: DARK + '33', fill: true, tension: .3 },
+      { label: 'Custeio', data: dadosArea.custeio, borderColor: LIGHT, backgroundColor: LIGHT + '55', fill: true, tension: .3 },
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' }, tooltip: { callbacks: tooltipCallbacks } },
+    scales: {
+      y: { ticks: { callback: fmtK }, grid: { color: '#f0f0f0' } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+const hBarDatalabels = {
+  anchor: 'end', align: 'end', color: '#333',
+  font: { size: 10, weight: '600' },
+  formatter: v => (v ? fmtFull(v) : ''),
+  clip: false,
+};
+
+setBarChartHeight('setorChartWrap', dadosSetor.labels);
+
+new Chart(document.getElementById('setorChart'), {
+  type: 'bar',
+  data: {
+    labels: dadosSetor.labels,
+    datasets: [
+      { label: 'Comprometido', data: dadosSetor.comprometido, backgroundColor: DARK, barThickness: 28 },
+      { label: 'Disponível',   data: dadosSetor.disponivel,   backgroundColor: LIGHT, barThickness: 28 },
+    ]
+  },
+  options: {
+    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+    layout: { padding: { top: 10, bottom: 10, left: 10, right: 100 } },
+    plugins: {
+      legend: { position: 'top' },
+      tooltip: { callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + fmtFull(ctx.parsed.x) } },
+      datalabels: { display: true, ...hBarDatalabels },
+    },
+    scales: {
+      x: { stacked: true, ticks: { callback: fmtK }, grid: { color: '#f0f0f0' } },
+      y: { stacked: true, grid: { display: false }, ticks: { autoSkip: false, crossAlign: 'center', align: 'center' } }
+    }
+  }
+});
+
+setBarChartHeight('rubricaChartWrap', dadosRubrica.labels);
+
+new Chart(document.getElementById('rubricaChart'), {
+  type: 'bar',
+  data: {
+    labels: dadosRubrica.labels,
+    datasets: [
+      { label: 'Comprometido', data: dadosRubrica.comprometido, backgroundColor: DARK, barThickness: 28 },
+      { label: 'Disponível',   data: dadosRubrica.disponivel,   backgroundColor: LIGHT, barThickness: 28 },
+    ]
+  },
+  options: {
+    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+    layout: { padding: { top: 10, bottom: 10, left: 10, right: 100 } },
+    plugins: {
+      legend: { position: 'top' },
+      tooltip: { callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + fmtFull(ctx.parsed.x) } },
+      datalabels: { display: true, ...hBarDatalabels },
+    },
+    scales: {
+      x: { stacked: true, ticks: { callback: fmtK }, grid: { color: '#f0f0f0' } },
+      y: { stacked: true, grid: { display: false }, ticks: { autoSkip: false, crossAlign: 'center', align: 'center' } }
+    }
+  }
+});
+
+(function buildPdiAccordion() {
+  const container = document.getElementById('pdi-accordion');
+  if (!container) return;
+
+  function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  }
+
+  const items = [...dadosPdi.perspectivas];
+  if (dadosPdi.sem_vinculo > 0) {
+    items.push({ id: 'sem', nome: 'Sem vínculo PDI', total: dadosPdi.sem_vinculo, objetivos: [], sem: true });
+  }
+
+  if (!items.length) {
+    container.innerHTML = '<div class="pdi-empty">Nenhuma despesa vinculada ao PDI ainda.</div>';
+    return;
+  }
+
+  const maxTotal = Math.max(...items.map(p => p.total), 1);
+
+  container.innerHTML = items.map((p, idx) => {
+    const pct     = (p.total / maxTotal * 100).toFixed(1);
+    const hasObj  = p.objetivos && p.objetivos.length > 0;
+    const colId   = 'pdi-obj-' + idx;
+    const fillCls = p.sem ? 'pdi-bar-fill sem' : 'pdi-bar-fill';
+
+    const headerAttrs = hasObj
+      ? `data-bs-toggle="collapse" data-bs-target="#${colId}" aria-expanded="false" aria-controls="${colId}"`
+      : 'class="pdi-persp-header pdi-no-obj"';
+
+    const header = `
+      <div class="pdi-persp-header" ${hasObj ? headerAttrs : ''} ${!hasObj ? 'style="cursor:default"' : ''}>
+        <div class="pdi-persp-name" title="${esc(p.nome)}">${esc(p.nome)}</div>
+        <div class="pdi-bar-track"><div class="${fillCls}" style="width:${pct}%"></div></div>
+        <div class="pdi-amount">${fmtFull(p.total)}</div>
+        ${hasObj ? '<i class="bi bi-chevron-down pdi-chevron"></i>' : '<span style="width:16px;flex-shrink:0"></span>'}
+      </div>`;
+
+    if (!hasObj) return `<div class="pdi-persp-item">${header}</div>`;
+
+    const maxObj = Math.max(...p.objetivos.map(o => o.total), 1);
+    const objRows = p.objetivos.map(o => {
+      const oPct = (o.total / maxObj * 100).toFixed(1);
+      return `
+        <div class="pdi-obj-row">
+          <div class="pdi-obj-name" title="${esc(o.nome)}">${esc(o.nome)}</div>
+          <div class="pdi-bar-track"><div class="pdi-bar-fill obj" style="width:${oPct}%"></div></div>
+          <div class="pdi-amount">${fmtFull(o.total)}</div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="pdi-persp-item">
+        ${header}
+        <div class="collapse pdi-obj-list" id="${colId}">${objRows}</div>
+      </div>`;
+  }).join('');
+})();
+
+(function() {
+  const reRs = /^R\$\s*([\d,]+(?:\.\d{1,2})?)$/;
+  document.querySelectorAll('table td, table tfoot td').forEach(td => {
+    const txt = td.textContent.trim();
+    const m   = txt.match(reRs);
+    if (!m) return;
+    const n = parseFloat(m[1].replace(',', ''));
+    if (isNaN(n)) return;
+    td.textContent = fmtFull(n);
+  });
+})();
+
+document.getElementById('tbl-search').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('#tbl-bens tbody tr').forEach(tr => {
+    tr.style.display = tr.cells[0].textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,435 @@
+{% extends 'base_orcamento.html' %}
+{% load humanize %}
+
+{% block title %}Transferências - Execução Orçamentária{% endblock %}
+
+{% block extra_head %}
+<style>
+/* Cabeçalho ordenável */
+th.sortable { cursor: pointer; white-space: nowrap; user-select: none; }
+th.sortable:hover { background: #2d3748; }
+th.sortable .sort-icon { font-size: .7rem; opacity: .45; margin-left: 4px; }
+th.sortable.active .sort-icon { opacity: 1; color: #90cdf4; }
+
+/* Células empilhadas */
+.cell-stack { line-height: 1.35; }
+.cell-stack .cs-main { font-size: .82rem; font-weight: 600; color: #1a202c; }
+.cell-stack .cs-sub  { font-size: .74rem; color: #718096; }
+.cell-stack .cs-tags { margin-top: 2px; display: flex; gap: 4px; flex-wrap: wrap; }
+.cs-badge {
+  display: inline-block;
+  font-size: .68rem; font-weight: 600;
+  padding: 1px 6px; border-radius: 4px;
+  background: #edf2f7; color: #4a5568;
+  border: 1px solid #e2e8f0;
+}
+.cs-badge.nat-capital  { background: #ebf4ff; color: #2b6cb0; border-color: #bee3f8; }
+.cs-badge.nat-custeio  { background: #f0fff4; color: #276749; border-color: #c6f6d5; }
+
+/* Ações */
+.btn-acao { padding: 3px 7px; font-size: .78rem; border-radius: 5px; }
+.orc-list-table th.sortable:hover { background-color: #e9ecef !important; }
+.orc-list-table th.sortable.active .sort-icon { color: #0d6efd !important; opacity: 1; }
+.orc-list-table .cell-stack .cs-main { font-size: .72rem; }
+.orc-list-table .cell-stack .cs-sub { font-size: .64rem; }
+.orc-list-table .cs-badge { font-size: .58rem; }
+.transferencia-table {
+  min-width: 100%;
+  table-layout: auto;
+}
+.transferencia-table .col-data { width: 10%; }
+.transferencia-table .col-debitar,
+.transferencia-table .col-creditar { width: 24%; }
+.transferencia-table .col-valor { width: 11%; }
+.transferencia-table .col-status { width: 9%; }
+.transferencia-table .col-registrada { width: 10%; }
+.transferencia-table .col-acoes {
+  width: 1%;
+  white-space: nowrap;
+}
+.transferencia-table .acoes-wrap {
+  justify-content: center;
+  width: max-content;
+}
+.transferencia-table th:nth-child(1),
+.transferencia-table td:nth-child(1),
+.transferencia-table th:nth-child(5),
+.transferencia-table td:nth-child(5),
+.transferencia-table th:nth-child(6),
+.transferencia-table td:nth-child(6),
+.transferencia-table th:nth-child(7),
+.transferencia-table td:nth-child(7) {
+  text-align: center !important;
+}
+.transferencia-table th:nth-child(7),
+.transferencia-table td:nth-child(7) {
+  padding-left: .4rem !important;
+  padding-right: .4rem !important;
+  white-space: nowrap;
+}
+.transferencia-filter-grid {
+  grid-template-columns: minmax(180px, 260px) max-content;
+  justify-content: start;
+}
+@media (max-width: 575.98px) {
+  .transferencia-filter-grid { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h4 class="mb-0 fw-bold">Transferências</h4>
+    <small class="text-muted">Remanejamentos entre recursos orçamentários</small>
+  </div>
+  <a href="{% url 'transferencia_create' %}" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus-lg me-1"></i>Nova Transferência
+  </a>
+</div>
+
+<!-- Filtros -->
+<div class="card border-0 shadow-sm mb-3 orc-filter-card">
+  <div class="card-header bg-white border-0 fw-semibold">
+    <i class="bi bi-funnel me-1" style="color:var(--orc-primary)"></i>Filtros
+  </div>
+  <div class="card-body">
+    <form method="get">
+      {% if ordem %}<input type="hidden" name="ordem" value="{{ ordem }}">{% endif %}
+      <div class="orc-filter-grid transferencia-filter-grid">
+        <div>
+          <label class="form-label">Status</label>
+          <select name="status" class="form-select form-select-sm">
+            <option value="" {% if not request.GET.status %}selected{% endif %}>Todas</option>
+            <option value="realizada" {% if request.GET.status == 'realizada' %}selected{% endif %}>Realizadas</option>
+            <option value="cancelada" {% if request.GET.status == 'cancelada' %}selected{% endif %}>Canceladas</option>
+          </select>
+        </div>
+        <div class="orc-filter-actions">
+          <button type="submit" class="btn btn-primary btn-sm btn-compact">
+            <i class="bi bi-search me-1"></i>Filtrar
+          </button>
+          <a href="{% url 'transferencia_list' %}{% if ordem %}?ordem={{ ordem }}{% endif %}" class="btn btn-light btn-sm btn-compact">
+            <i class="bi bi-x-circle me-1"></i>Limpar
+          </a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 orc-list-table transferencia-table">
+        <colgroup>
+          <col class="col-data">
+          <col class="col-debitar">
+          <col class="col-creditar">
+          <col class="col-valor">
+          <col class="col-status">
+          <col class="col-registrada">
+          <col class="col-acoes">
+        </colgroup>
+        <thead class="table-light">
+          <tr>
+            {% with s=request.GET.status %}
+
+            {# Data / Hora #}
+            {% if ordem == 'criada_em' %}
+              <th class="px-3 sortable active">
+                <a href="?ordem=-criada_em{% if s %}&status={{ s }}{% endif %}" class="sort-link">
+                  Data / Hora <i class="bi bi-caret-up-fill sort-icon"></i>
+                </a>
+              </th>
+            {% elif ordem == '-criada_em' %}
+              <th class="px-3 sortable active">
+                <a href="?ordem=criada_em{% if s %}&status={{ s }}{% endif %}" class="sort-link">
+                  Data / Hora <i class="bi bi-caret-down-fill sort-icon"></i>
+                </a>
+              </th>
+            {% else %}
+              <th class="px-3 sortable">
+                <a href="?ordem=criada_em{% if s %}&status={{ s }}{% endif %}" class="sort-link">
+                  Data / Hora <i class="bi bi-arrow-down-up sort-icon"></i>
+                </a>
+              </th>
+            {% endif %}
+
+            {# Origem #}
+            {% if ordem == 'origem_setor' %}
+              <th class="sortable active">
+                <a href="?ordem=-origem_setor{% if s %}&status={{ s }}{% endif %}" class="sort-link">
+                  Debitar <i class="bi bi-caret-up-fill sort-icon"></i>
+                </a>
+              </th>
+            {% elif ordem == '-origem_setor' %}
+              <th class="sortable active">
+                <a href="?ordem=origem_setor{% if s %}&status={{ s }}{% endif %}" class="sort-link">
+                  Debitar <i class="bi bi-caret-down-fill sort-icon"></i>
+                </a>
+              </th>
+            {% else %}
+              <th class="sortable">
+                <a href="?ordem=origem_setor{% if s %}&status={{ s }}{% endif %}" class="sort-link">
+                  Debitar <i class="bi bi-arrow-down-up sort-icon"></i>
+                </a>
+              </th>
+            {% endif %}
+
+            {# Destino #}
+            {% if ordem == 'destino_setor' %}
+              <th class="sortable active">
+                <a href="?ordem=-destino_setor{% if s %}&status={{ s }}{% endif %}" class="sort-link">
+                  Creditar <i class="bi bi-caret-up-fill sort-icon"></i>
+                </a>
+              </th>
+            {% elif ordem == '-destino_setor' %}
+              <th class="sortable active">
+                <a href="?ordem=destino_setor{% if s %}&status={{ s }}{% endif %}" class="sort-link">
+                  Creditar <i class="bi bi-caret-down-fill sort-icon"></i>
+                </a>
+              </th>
+            {% else %}
+              <th class="sortable">
+                <a href="?ordem=destino_setor{% if s %}&status={{ s }}{% endif %}" class="sort-link">
+                  Creditar <i class="bi bi-arrow-down-up sort-icon"></i>
+                </a>
+              </th>
+            {% endif %}
+
+            {# Valor #}
+            {% if ordem == 'valor' %}
+              <th class="sortable active text-end">
+                <a href="?ordem=-valor{% if s %}&status={{ s }}{% endif %}" class="sort-link">
+                  Valor <i class="bi bi-caret-up-fill sort-icon"></i>
+                </a>
+              </th>
+            {% elif ordem == '-valor' %}
+              <th class="sortable active text-end">
+                <a href="?ordem=valor{% if s %}&status={{ s }}{% endif %}" class="sort-link">
+                  Valor <i class="bi bi-caret-down-fill sort-icon"></i>
+                </a>
+              </th>
+            {% else %}
+              <th class="sortable text-end">
+                <a href="?ordem=valor{% if s %}&status={{ s }}{% endif %}" class="sort-link">
+                  Valor <i class="bi bi-arrow-down-up sort-icon"></i>
+                </a>
+              </th>
+            {% endif %}
+
+            {# Status #}
+            {% if ordem == 'status' %}
+              <th class="sortable active">
+                <a href="?ordem=-status{% if s %}&status={{ s }}{% endif %}" class="sort-link">
+                  Status <i class="bi bi-caret-up-fill sort-icon"></i>
+                </a>
+              </th>
+            {% elif ordem == '-status' %}
+              <th class="sortable active">
+                <a href="?ordem=status{% if s %}&status={{ s }}{% endif %}" class="sort-link">
+                  Status <i class="bi bi-caret-down-fill sort-icon"></i>
+                </a>
+              </th>
+            {% else %}
+              <th class="sortable">
+                <a href="?ordem=status{% if s %}&status={{ s }}{% endif %}" class="sort-link">
+                  Status <i class="bi bi-arrow-down-up sort-icon"></i>
+                </a>
+              </th>
+            {% endif %}
+
+            {# Registrada por #}
+            {% if ordem == 'criada_por' %}
+              <th class="sortable active">
+                <a href="?ordem=-criada_por{% if s %}&status={{ s }}{% endif %}" class="sort-link">
+                  Registrada por <i class="bi bi-caret-up-fill sort-icon"></i>
+                </a>
+              </th>
+            {% elif ordem == '-criada_por' %}
+              <th class="sortable active">
+                <a href="?ordem=criada_por{% if s %}&status={{ s }}{% endif %}" class="sort-link">
+                  Registrada por <i class="bi bi-caret-down-fill sort-icon"></i>
+                </a>
+              </th>
+            {% else %}
+              <th class="sortable">
+                <a href="?ordem=criada_por{% if s %}&status={{ s }}{% endif %}" class="sort-link">
+                  Registrada por <i class="bi bi-arrow-down-up sort-icon"></i>
+                </a>
+              </th>
+            {% endif %}
+
+            <th class="text-center px-3">Ações</th>
+            {% endwith %}
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for t in transferencias %}
+          <tr>
+            <!-- Data e hora de criação -->
+            <td class="px-3 text-nowrap">{{ t.criada_em|date:"d/m/Y H:i"|default:"—" }}</td>
+
+            <!-- Origem empilhada -->
+            <td class="cell-stack">
+              <div class="cs-main">{{ t.origem.setor.sigla|default:"—" }}</div>
+              <div class="cs-sub">{{ t.origem.origem_recurso|truncatechars:28 }}</div>
+              <div class="cs-tags">
+                <span class="cs-badge nat-{{ t.origem.natureza }}">{{ t.origem.get_natureza_display }}</span>
+                <span class="cs-badge">{{ t.origem.rubrica|truncatechars:22 }}</span>
+              </div>
+            </td>
+
+            <!-- Destino empilhado -->
+            <td class="cell-stack">
+              <div class="cs-main">{{ t.destino.setor.sigla|default:"—" }}</div>
+              <div class="cs-sub">{{ t.destino.origem_recurso|truncatechars:28 }}</div>
+              <div class="cs-tags">
+                <span class="cs-badge nat-{{ t.destino.natureza }}">{{ t.destino.get_natureza_display }}</span>
+                <span class="cs-badge">{{ t.destino.rubrica|truncatechars:22 }}</span>
+              </div>
+            </td>
+
+            <!-- Valor -->
+            <td class="text-end fw-semibold text-nowrap">R$ {{ t.valor|floatformat:2|intcomma }}</td>
+
+            <!-- Status -->
+            <td>
+              <span class="badge rounded-pill
+                {% if t.status == 'realizada' %}bg-success
+                {% elif t.status == 'cancelada' %}bg-danger
+                {% else %}bg-warning text-dark{% endif %}">
+                {{ t.get_status_display }}
+              </span>
+            </td>
+
+            <!-- Registrada por -->
+            <td class="text-muted">{{ t.criada_por|default:"—" }}</td>
+
+            <!-- Ações -->
+            <td class="text-center text-nowrap px-3">
+              <div class="d-inline-flex gap-1 acoes-wrap">
+
+                <!-- Ver detalhe -->
+                <a href="{% url 'transferencia_detail' t.pk %}"
+                   class="btn btn-sm btn-outline-secondary btn-acao"
+                   title="Ver detalhes">
+                  <i class="bi bi-eye"></i>
+                </a>
+
+                <!-- Editar -->
+                {% if t.status != 'cancelada' %}
+                <a href="{% url 'transferencia_edit' t.pk %}"
+                   class="btn btn-sm btn-outline-primary btn-acao"
+                   title="Editar">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                {% else %}
+                <button class="btn btn-sm btn-outline-primary btn-acao" disabled title="Cancelada — não editável">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                {% endif %}
+
+                <!-- Link SIPAC -->
+                {% if t.link_sipac %}
+                <a href="{{ t.link_sipac }}" target="_blank" rel="noopener"
+                   class="btn btn-sm btn-outline-info btn-acao"
+                   title="Abrir processo no SIPAC">
+                  <i class="bi bi-box-arrow-up-right"></i>
+                </a>
+                {% else %}
+                <button class="btn btn-sm btn-outline-info btn-acao" disabled title="Sem link SIPAC">
+                  <i class="bi bi-box-arrow-up-right"></i>
+                </button>
+                {% endif %}
+
+                <!-- Baixar comprovante -->
+                {% if t.comprovante %}
+                <a href="{{ t.comprovante.url }}" download
+                   class="btn btn-sm btn-outline-success btn-acao"
+                   title="Baixar comprovante">
+                  <i class="bi bi-download"></i>
+                </a>
+                {% else %}
+                <button class="btn btn-sm btn-outline-success btn-acao" disabled title="Sem comprovante">
+                  <i class="bi bi-download"></i>
+                </button>
+                {% endif %}
+
+                <!-- Cancelar -->
+                {% if t.status != 'cancelada' %}
+                <button type="button"
+                        class="btn btn-sm btn-outline-danger btn-acao"
+                        title="Cancelar transferência"
+                        data-bs-toggle="modal"
+                        data-bs-target="#modalCancelar"
+                        data-pk="{{ t.pk }}"
+                        data-desc="{{ t.origem.setor.sigla|default:'?' }} → {{ t.destino.setor.sigla|default:'?' }} · R$ {{ t.valor|floatformat:2 }}">
+                  <i class="bi bi-x-circle"></i>
+                </button>
+                {% else %}
+                <button class="btn btn-sm btn-outline-danger btn-acao" disabled title="Já cancelada">
+                  <i class="bi bi-x-circle"></i>
+                </button>
+                {% endif %}
+
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="7" class="text-center text-muted py-5">
+              <i class="bi bi-inbox fs-3 d-block mb-2 opacity-25"></i>
+              Nenhuma transferência encontrada.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de confirmação de cancelamento -->
+<div class="modal fade" id="modalCancelar" tabindex="-1" aria-labelledby="modalCancelarLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h6 class="modal-title fw-bold" id="modalCancelarLabel">
+          <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>Cancelar Transferência
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <p class="mb-1 small text-muted">Você está cancelando:</p>
+        <p class="fw-semibold mb-0" id="modalCancelarDesc"></p>
+        <p class="small text-danger mt-2 mb-0">
+          Esta ação irá reverter os saldos dos recursos envolvidos.
+        </p>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Voltar</button>
+        <form id="formCancelar" method="post" action="">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm btn-danger">
+            <i class="bi bi-x-circle me-1"></i>Confirmar cancelamento
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Alimenta o modal de cancelamento com os dados da linha
+document.getElementById('modalCancelar').addEventListener('show.bs.modal', function(e) {
+  const btn = e.relatedTarget;
+  document.getElementById('modalCancelarDesc').textContent = btn.dataset.desc;
+  document.getElementById('formCancelar').action = '/orcamento/transferencias/' + btn.dataset.pk + '/cancelar/';
+});
+</script>
+{% endblock %}

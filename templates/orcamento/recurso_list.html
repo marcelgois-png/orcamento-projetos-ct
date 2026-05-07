@@ -1,0 +1,437 @@
+{% extends 'base_orcamento.html' %}
+{% load humanize %}
+
+{% block title %}Recursos Orçamentários{% endblock %}
+
+{% block extra_head %}
+<style>
+.btn-xs { padding: 2px 6px; font-size: .75rem; }
+
+th.sortable-col { cursor: pointer; user-select: none; white-space: nowrap; }
+th.sortable-col:hover { background: rgba(255,255,255,.08); }
+th.sortable-col .sort-icon { opacity: .35; font-size: .7rem; margin-left: 3px; }
+th.sortable-col.asc  .sort-icon::after { content: '▲'; opacity: 1; }
+th.sortable-col.desc .sort-icon::after { content: '▼'; opacity: 1; }
+th.sortable-col:not(.asc):not(.desc) .sort-icon::after { content: '⇅'; }
+
+/* Tom Select no cabeçalho de filtros */
+.ts-wrapper { font-size: .875rem; }
+.ts-control  { min-height: 34px; }
+.orc-list-table .col-ano { width: 7%; }
+.orc-list-table .col-setor { width: 10%; }
+.orc-list-table .col-origem { width: 18%; }
+.orc-list-table .col-natureza { width: 10%; }
+.orc-list-table .col-rubrica { width: 23%; }
+.orc-list-table .col-orcado,
+.orc-list-table .col-saldo { width: 12%; }
+.orc-list-table .col-acoes { width: 72px; }
+.orc-list-table th.sortable-col:hover { background-color: #e9ecef !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Cabeçalho -->
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h4 class="mb-0 fw-bold">Recursos Orçamentários</h4>
+    <small class="text-muted">Dotações disponibilizadas ao CT/UFPB</small>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'recurso_template_xlsx' %}" class="btn btn-success btn-sm">
+      <i class="bi bi-file-earmark-excel me-1"></i>Planilha Modelo
+    </a>
+    <a href="{% url 'recurso_importar' %}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-upload me-1"></i>Importar
+    </a>
+    <button id="btn-excluir-sel" type="button" class="btn btn-danger btn-sm d-none"
+            onclick="excluirSelecionados()">
+      <i class="bi bi-trash me-1"></i>Excluir Selecionados
+    </button>
+    <a href="{% url 'recurso_create' %}" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus-lg me-1"></i>Novo Recurso
+    </a>
+  </div>
+</div>
+
+<!-- Filtros -->
+<div class="card border-0 shadow-sm mb-3 orc-filter-card">
+  <div class="card-header bg-white border-0 d-flex align-items-center justify-content-between">
+    <span class="fw-semibold small">
+      <i class="bi bi-funnel me-1" style="color:var(--orc-primary)"></i>Filtros
+    </span>
+    {% if filtros_ativos %}
+    <span class="badge rounded-pill"
+          style="background:rgba(198,84,60,.12);color:var(--orc-primary);font-size:.72rem">
+      filtro ativo
+    </span>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    <form id="form-filtros" method="get">
+      {% if sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+      {% if dir  %}<input type="hidden" name="dir"  value="{{ dir }}">{% endif %}
+
+      <div class="orc-filter-grid cols-5">
+        <!-- Linha 1 -->
+        <div>
+          <label class="form-label">Ano</label>
+          <select id="fil-ano" name="ano" multiple placeholder="Todos">
+            {% for a in anos_opts %}
+            <option value="{{ a }}" {% if a|stringformat:'s' in sel_anos %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="form-label">Setor</label>
+          <select id="fil-setor" name="setor" multiple placeholder="Todos">
+            {% for s in setores_opts %}
+            <option value="{{ s.pk }}" {% if s.pk|stringformat:'s' in sel_setores or s.sigla in sel_setores %}selected{% endif %}>
+              {{ s.sigla }}{% if s.nome %} — {{ s.nome }}{% endif %}{% if s.codigo %} ({{ s.codigo }}){% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="form-label">Origem do Recurso</label>
+          <select id="fil-origem" name="origem" multiple placeholder="Todas">
+            {% for o in origens_opts %}
+            <option value="{{ o.nome }}" {% if o.nome in sel_origens %}selected{% endif %}>{{ o.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Linha 2 -->
+        <div>
+          <label class="form-label">Natureza</label>
+          <select id="fil-natureza" name="natureza" multiple placeholder="Todas">
+            {% for n in naturezas_opts %}
+            <option value="{{ n.nome }}" {% if n.nome in sel_naturezas %}selected{% endif %}>{{ n.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="form-label">Rubrica</label>
+          <select id="fil-rubrica" name="rubrica" multiple placeholder="Todas">
+            {% for r in rubricas_opts %}
+            <option value="{{ r }}" {% if r|stringformat:'s' in sel_rubricas %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="orc-filter-actions">
+          <button type="submit" class="btn btn-primary btn-sm btn-compact">
+            <i class="bi bi-search me-1"></i>Filtrar
+          </button>
+          <button type="button" class="btn btn-light btn-sm btn-compact"
+                  onclick="limparFiltros()">
+            <i class="bi bi-x-circle me-1"></i>Limpar
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Tabela -->
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 orc-list-table">
+        <thead class="table-light">
+          <tr>
+            <th class="text-center" style="width:36px">
+              <input type="checkbox" id="chk-all" class="form-check-input" title="Selecionar todos">
+            </th>
+            {% for col_key, col_label, col_class in colunas %}
+            <th class="sortable-col {{ col_class }} col-{{ col_key }} {% if sort == col_key %}{% if dir == 'desc' %}desc{% else %}asc{% endif %}{% endif %}"
+                data-sort="{{ col_key }}">
+              {{ col_label }}<span class="sort-icon"></span>
+            </th>
+            {% endfor %}
+            <th class="text-center col-acoes">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in recursos %}
+          <tr>
+            <td class="text-center">
+              <input type="checkbox" class="form-check-input chk-row" value="{{ r.pk }}">
+            </td>
+            <td class="fw-semibold">{{ r.ano_fiscal }}</td>
+            <td>{{ r.setor.sigla|default:"-" }}</td>
+            <td>{{ r.origem_recurso|truncatechars:28 }}</td>
+            <td>
+              <span class="badge {% if r.natureza|lower == 'custeio' %}bg-primary-subtle text-primary{% else %}bg-warning-subtle text-warning-emphasis{% endif %}">
+                {{ r.natureza }}
+              </span>
+            </td>
+            <td>{{ r.rubrica|truncatechars:35 }}</td>
+            <td class="text-end">R$&nbsp;{{ r.valor_orcamentario|floatformat:2|intcomma }}</td>
+            <td class="text-end {% if r.saldo_atual < 0 %}text-danger fw-semibold{% elif r.saldo_atual == 0 %}text-muted{% else %}text-success{% endif %}">
+              R$&nbsp;{{ r.saldo_atual|floatformat:2|intcomma }}
+            </td>
+            <td class="text-center text-nowrap">
+              <a href="{% url 'recurso_edit' r.pk %}" class="btn btn-xs btn-outline-secondary" title="Editar">
+                <i class="bi bi-pencil"></i>
+              </a>
+              <a href="{% url 'recurso_delete' r.pk %}" class="btn btn-xs btn-outline-danger" title="Excluir">
+                <i class="bi bi-trash"></i>
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          {% if not linhas_transf %}
+          <tr><td colspan="9" class="text-center text-muted py-4">Nenhum recurso encontrado.</td></tr>
+          {% endif %}
+          {% endfor %}
+
+          {% for r in linhas_transf %}
+          <tr class="{% if r.transf_tipo == 'debito' %}table-danger{% else %}table-success{% endif %}" style="--bs-table-bg-type: transparent;">
+            <td class="text-center">
+              {% if r.transf_tipo == 'debito' %}
+              <i class="bi bi-arrow-up-right text-danger" title="Débito (transferência)"></i>
+              {% else %}
+              <i class="bi bi-arrow-down-left text-success" title="Crédito (transferência)"></i>
+              {% endif %}
+            </td>
+            <td class="fw-semibold">{{ r.ano_fiscal }}</td>
+            <td>{{ r.setor.sigla|default:"-" }}</td>
+            <td>{{ r.origem_recurso|truncatechars:28 }}</td>
+            <td>
+              <span class="badge {% if r.natureza|lower == 'custeio' %}bg-primary-subtle text-primary{% else %}bg-warning-subtle text-warning-emphasis{% endif %}">
+                {{ r.natureza }}
+              </span>
+            </td>
+            <td>
+              {{ r.rubrica|truncatechars:30 }}
+              <span class="badge ms-1 {% if r.transf_tipo == 'debito' %}bg-danger-subtle text-danger{% else %}bg-success-subtle text-success{% endif %}" style="font-size:.65rem">
+                {% if r.transf_tipo == 'debito' %}TRANSF. DÉBITO{% else %}TRANSF. CRÉDITO{% endif %}
+              </span>
+            </td>
+            <td class="text-end {% if r.transf_tipo == 'debito' %}text-danger{% else %}text-success{% endif %} fw-semibold">
+              {% if r.transf_tipo == 'debito' %}−{% else %}+{% endif %}R$&nbsp;{{ r.valor_orcamentario|floatformat:2|cut:"-"|intcomma }}
+            </td>
+            <td class="text-end text-muted">—</td>
+            <td class="text-center text-nowrap">
+              <a href="{% url 'transferencia_edit' r.transf_id %}" class="btn btn-xs btn-outline-secondary" title="Ver transferência">
+                <i class="bi bi-arrow-left-right"></i>
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+
+        </tbody>
+        {% if recursos %}
+        <tfoot class="table-light fw-semibold small">
+          <tr>
+            <td></td>
+            <td colspan="5" class="px-3 text-end">Totais:</td>
+            <td class="text-end">R$&nbsp;{{ total_orcado|floatformat:2|intcomma }}</td>
+            <td class="text-end {% if total_saldo < 0 %}text-danger{% else %}text-success{% endif %}">
+              R$&nbsp;{{ total_saldo|floatformat:2|intcomma }}
+            </td>
+            <td></td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Formulário oculto para exclusão em lote -->
+<form id="form-excluir" method="post" action="{% url 'recurso_excluir_lote' %}">
+  {% csrf_token %}
+  <div id="pks-container"></div>
+</form>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ── Dados ─────────────────────────────────────────────────────────────────────
+// Registros existentes (para cascade dinâmico quando houver dados)
+const RECORDS = {{ all_records_json|safe }};
+
+// Relacionamento estático Natureza ↔ Rubrica (do cadastro de listas)
+// RUBRICA_MAP : { natureza_nome: [rubrica_str, ...] }
+// NAT_DE_RUB  : { rubrica_str: natureza_nome }
+const RUBRICA_MAP  = {{ rubrica_map_json|safe }};
+const NAT_DE_RUB   = {{ natureza_de_rubrica_json|safe }};
+
+// Todas as opções completas de cada filtro (fonte de verdade para reset)
+const ALL_OPTIONS = {
+  ano:      [{% for a in anos_opts %}     {value:"{{ a }}",               text:"{{ a }}"},{% endfor %}],
+  setor:    [{% for s in setores_opts %}  {value:"{{ s.pk }}",            text:"{{ s.sigla|escapejs }}{% if s.nome %} — {{ s.nome|escapejs }}{% endif %}{% if s.codigo %} ({{ s.codigo|escapejs }}){% endif %}"},{% endfor %}],
+  origem:   [{% for o in origens_opts %}  {value:"{{ o.nome|escapejs }}", text:"{{ o.nome|escapejs }}"},{% endfor %}],
+  natureza: [{% for n in naturezas_opts %}{value:"{{ n.nome|escapejs }}", text:"{{ n.nome|escapejs }}"},{% endfor %}],
+  rubrica:  [{% for r in rubricas_opts %} {value:"{{ r|escapejs }}",      text:"{{ r|escapejs }}"},{% endfor %}],
+};
+
+const KEYS = ['ano', 'setor', 'origem', 'natureza', 'rubrica'];
+const ts   = {};
+
+// ── Inicializa Tom Select ────────────────────────────────────────────────────
+KEYS.forEach(k => {
+  ts[k] = new TomSelect(`#fil-${k}`, {
+    plugins:          ['remove_button'],
+    persist:          false,
+    create:           false,
+    allowEmptyOption: false,
+  });
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function getItems(k) { return ts[k].items ? [...ts[k].items] : []; }
+
+function aplicarOpcoes(focusKey, available) {
+  // available: Set de valores em lowercase permitidos
+  if (available.size === 0) return;
+  const inst = ts[focusKey];
+  const kept = getItems(focusKey).filter(v => available.has(v.toLowerCase()));
+  inst.clearOptions();
+  ALL_OPTIONS[focusKey].forEach(opt => {
+    if (available.has(opt.value.toLowerCase()))
+      inst.addOption({value: opt.value, text: opt.text});
+  });
+  inst.setValue(kept, true);
+  inst.refreshOptions(false);
+}
+
+// ── Cascade ───────────────────────────────────────────────────────────────────
+let _busy = false;
+
+function cascade() {
+  if (_busy) return;
+  _busy = true;
+  try {
+    const sel = {};
+    KEYS.forEach(k => { sel[k] = getItems(k); });
+
+    // ── 1. Natureza → Rubrica (estático, sempre ativo) ────────────────────
+    {
+      const selNat = sel['natureza'];
+      if (selNat.length > 0) {
+        const allowed = new Set();
+        selNat.forEach(nat => {
+          (RUBRICA_MAP[nat] || []).forEach(r => allowed.add(r.toLowerCase()));
+        });
+        aplicarOpcoes('rubrica', allowed);
+      } else {
+        // Sem natureza selecionada → mostra todas as rubricas
+        const inst = ts['rubrica'];
+        const allRubs = new Set(ALL_OPTIONS.rubrica.map(o => o.value.toLowerCase()));
+        aplicarOpcoes('rubrica', allRubs);
+      }
+    }
+
+    // ── 2. Rubrica → Natureza (estático, sempre ativo) ────────────────────
+    {
+      const selRub = sel['rubrica'];
+      if (selRub.length > 0) {
+        const allowed = new Set();
+        selRub.forEach(rb => {
+          const nat = NAT_DE_RUB[rb] || NAT_DE_RUB[Object.keys(NAT_DE_RUB).find(k => k.toLowerCase() === rb.toLowerCase())];
+          if (nat) allowed.add(nat.toLowerCase());
+        });
+        if (allowed.size > 0) aplicarOpcoes('natureza', allowed);
+      } else {
+        // Sem rubrica selecionada → restaura naturezas filtradas pela natureza já selecionada
+        // (não faz nada — a seleção de natureza já está correta)
+      }
+    }
+
+    // ── 3. Cascade por dados (RECORDS) para os demais campos ──────────────
+    if (RECORDS.length > 0) {
+      ['ano', 'setor', 'origem'].forEach(focusKey => {
+        const matching = RECORDS.filter(r =>
+          KEYS.every(k => {
+            if (k === focusKey) return true;
+            if (!sel[k].length)  return true;
+            return sel[k].some(v => v.toLowerCase() === String(r[k]).toLowerCase());
+          })
+        );
+        const available = new Set(matching.map(r => String(r[focusKey]).toLowerCase()));
+        if (available.size > 0) aplicarOpcoes(focusKey, available);
+      });
+    }
+
+  } finally {
+    _busy = false;
+  }
+}
+
+// ── Attach onChange ───────────────────────────────────────────────────────────
+KEYS.forEach(k => { ts[k].on('change', cascade); });
+
+// Cascade inicial se houver filtros pré-selecionados via GET
+if (KEYS.some(k => getItems(k).length > 0)) cascade();
+
+// ── Limpar ────────────────────────────────────────────────────────────────────
+function limparFiltros() {
+  _busy = true;
+  KEYS.forEach(k => {
+    ts[k].clear(true);
+    ts[k].clearOptions();
+    ALL_OPTIONS[k].forEach(opt => ts[k].addOption({value: opt.value, text: opt.text}));
+    ts[k].refreshOptions(false);
+  });
+  _busy = false;
+  document.getElementById('form-filtros').submit();
+}
+
+// ── Ordenação por coluna ──────────────────────────────────────────────────────
+function sortUrl(colKey) {
+  const params  = new URLSearchParams(window.location.search);
+  const curSort = params.get('sort');
+  const curDir  = params.get('dir') || 'asc';
+  params.set('sort', colKey);
+  params.set('dir', curSort === colKey && curDir === 'asc' ? 'desc' : 'asc');
+  return '?' + params.toString();
+}
+
+document.querySelectorAll('th.sortable-col').forEach(th => {
+  th.addEventListener('click', () => { window.location.href = sortUrl(th.dataset.sort); });
+});
+
+// ── Checkboxes ────────────────────────────────────────────────────────────────
+const chkAll  = document.getElementById('chk-all');
+const btnExcl = document.getElementById('btn-excluir-sel');
+
+function atualizarBotao() {
+  const marcados = document.querySelectorAll('.chk-row:checked').length;
+  btnExcl.classList.toggle('d-none', marcados === 0);
+  btnExcl.textContent = marcados > 0
+    ? `Excluir (${marcados})`
+    : 'Excluir Selecionados';
+  // Recoloca ícone (textContent apaga innerHTML)
+  btnExcl.innerHTML = `<i class="bi bi-trash me-1"></i>Excluir${marcados > 0 ? ' ('+marcados+')' : ' Selecionados'}`;
+  chkAll.indeterminate = marcados > 0 &&
+    marcados < document.querySelectorAll('.chk-row').length;
+  chkAll.checked = marcados > 0 &&
+    marcados === document.querySelectorAll('.chk-row').length;
+}
+
+chkAll.addEventListener('change', () => {
+  document.querySelectorAll('.chk-row').forEach(c => c.checked = chkAll.checked);
+  atualizarBotao();
+});
+
+document.querySelectorAll('.chk-row').forEach(c => {
+  c.addEventListener('change', atualizarBotao);
+});
+
+function excluirSelecionados() {
+  const pks = [...document.querySelectorAll('.chk-row:checked')].map(c => c.value);
+  if (!pks.length) return;
+  if (!confirm(`Excluir ${pks.length} recurso(s) selecionado(s)? Esta ação não pode ser desfeita.`)) return;
+  const container = document.getElementById('pks-container');
+  container.innerHTML = pks.map(pk => `<input type="hidden" name="pks" value="${pk}">`).join('');
+  document.getElementById('form-excluir').submit();
+}
+</script>
+{% endblock %}

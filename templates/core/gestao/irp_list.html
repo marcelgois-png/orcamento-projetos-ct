@@ -1,0 +1,353 @@
+{% extends 'base.html' %}
+{% load core_tags %}
+{% block title %}Gerenciar IRPs – IRP CT/UFPB{% endblock %}
+
+{% block extra_head %}
+<style>
+  .prazo-linha { font-size: .78rem; color: #6c757d; white-space: nowrap; }
+  .prazo-ativo { color: #0a3622; font-weight: 600; }
+  /* Tooltip vermelho */
+  .tooltip-danger .tooltip-inner { background-color: #dc3545; font-size: .8rem; max-width: 260px; }
+  .tooltip-danger.bs-tooltip-top    .tooltip-arrow::before { border-top-color:    #dc3545; }
+  .tooltip-danger.bs-tooltip-bottom .tooltip-arrow::before { border-bottom-color: #dc3545; }
+  .tooltip-danger.bs-tooltip-start  .tooltip-arrow::before { border-left-color:   #dc3545; }
+  .tooltip-danger.bs-tooltip-end    .tooltip-arrow::before { border-right-color:  #dc3545; }
+
+  /* Botões de ação com borda arredondada */
+  .irp-acao {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px;
+    border-radius: 7px;
+    border: 1px solid transparent;
+    font-size: .95rem;
+    text-decoration: none;
+    background: none;
+    cursor: pointer;
+    padding: 0;
+    transition: background .15s, border-color .15s, color .15s;
+    flex-shrink: 0;
+  }
+  .irp-acao-disabled  { color: #adb5bd; border-color: #dee2e6; background: #f8f9fa; cursor: not-allowed; opacity: .55; }
+  .irp-acao-edit      { color: #0d6efd; border-color: #c7d8fc; background: #eef3ff; }
+  .irp-acao-edit:hover{ background: #dce8ff; border-color: #9bbcfb; color: #0a58ca; }
+  .irp-acao-itens     { color: #6f42c1; border-color: #d9c8f7; background: #f3eeff; }
+  .irp-acao-itens:hover{ background: #e8dcff; border-color: #b89fea; color: #59359a; }
+  .irp-acao-result    { color: #0d6efd; border-color: #c7d8fc; background: #eef3ff; }
+  .irp-acao-result:hover{ background: #dce8ff; border-color: #9bbcfb; color: #0a58ca; }
+  .irp-acao-export    { color: #198754; border-color: #b6dcc8; background: #e8f5ee; }
+  .irp-acao-export:hover{ background: #d1ece0; border-color: #86c5a5; color: #135f3c; }
+  .irp-acao-liberar   { color: #198754; border-color: #b6dcc8; background: #e8f5ee; }
+  .irp-acao-liberar:hover{ background: #d1ece0; border-color: #86c5a5; color: #135f3c; }
+  .irp-acao-pausar    { color: #6c757d; border-color: #ced4da; background: #f8f9fa; }
+  .irp-acao-pausar:hover{ background: #e9ecef; border-color: #adb5bd; color: #495057; }
+  .irp-acao-del       { color: #dc3545; border-color: #f5c2c7; background: #fff0f1; }
+  .irp-acao-del:hover { background: #ffd9dc; border-color: #f09fa7; color: #a71d2a; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Cabeçalho -->
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h4 class="fw-bold mb-0 titulo-pagina">
+    <i class="bi bi-file-earmark-text me-2 text-primary"></i>Gerenciar IRPs
+  </h4>
+  <a href="{% url 'gestao_irp_create' %}" class="btn btn-primary btn-sm fw-semibold">
+    <i class="bi bi-plus-lg me-1"></i> Nova IRP
+  </a>
+</div>
+
+<!-- Filtros -->
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+  <div class="input-group input-group-sm" style="max-width:340px">
+    <span class="input-group-text bg-white border-end-0">
+      <i class="bi bi-search text-muted"></i>
+    </span>
+    <input type="text" id="busca-irp"
+           class="form-control border-start-0 ps-0"
+           placeholder="Filtrar por título...">
+  </div>
+
+  <select id="filtro-fase" class="ts-filtro" multiple placeholder="Todas as fases">
+    <option value="em_cadastro">Em cadastro</option>
+    <option value="respostas">Coletando respostas</option>
+    <option value="homologacao">Em homologação</option>
+    <option value="encerrada">Encerrada</option>
+  </select>
+
+  <button type="button" id="btn-limpar-filtros"
+          class="btn btn-sm btn-outline-secondary d-none"
+          style="font-family:'Open Sans',sans-serif"
+          onclick="limparFiltros()">
+    <i class="bi bi-x-lg me-1"></i> Limpar
+  </button>
+</div>
+
+<!-- Tabela -->
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 w-100" id="tabela-irps" style="table-layout:fixed">
+      <thead class="table-light">
+        <tr>
+          <th class="sortable" data-col="0" style="width:20%">Título <span class="sort-icon"></span></th>
+          <th style="width:20%">Prazos</th>
+          <th class="sortable text-center" data-col="2" style="width:15%">Fase atual <span class="sort-icon"></span></th>
+          <th class="sortable text-center" data-col="3" style="width:10%">Itens <span class="sort-icon"></span></th>
+          <th class="sortable text-center" data-col="4" style="width:10%">Respostas <span class="sort-icon"></span></th>
+          <th class="text-center" style="width:25%">Ações</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-irps">
+        {% for irp in irps %}
+        <tr class="irp-row"
+            data-busca="{{ irp.titulo|lower }}"
+            data-fase="{% if not irp.liberada or irp.itens_ativos == 0 %}em_cadastro{% else %}{{ irp.fase_atual }}{% endif %}">
+
+          <!-- Título -->
+          <td data-sort="{{ irp.titulo|lower }}">
+            <span class="fw-semibold">{{ irp.titulo }}</span>
+            {% if irp.descricao %}
+            <br><span class="text-muted" style="font-size:.8rem">{{ irp.descricao|truncatechars:70 }}</span>
+            {% endif %}
+          </td>
+
+          <!-- Prazos -->
+          <td>
+            <div class="d-flex flex-column gap-1">
+              <div class="prazo-linha {% if irp.fase_atual == 'respostas' %}prazo-ativo{% endif %}">
+                <i class="bi bi-1-circle me-1"></i>Respostas até {{ irp.prazo|date:"d/m/Y" }}
+              </div>
+              <div class="prazo-linha {% if irp.fase_atual == 'homologacao' %}prazo-ativo{% endif %}">
+                <i class="bi bi-2-circle me-1"></i>Homologação:
+                {% if irp.prazo_homologacao %}{{ irp.prazo_homologacao|date:"d/m/Y" }}
+                {% else %}<em class="opacity-50">não definido</em>{% endif %}
+              </div>
+            </div>
+          </td>
+
+          <!-- Fase atual -->
+          <td class="text-center" data-sort="{% if not irp.liberada or irp.itens_ativos == 0 %}em_cadastro{% else %}{{ irp.fase_atual }}{% endif %}">
+            {% if not irp.liberada or irp.itens_ativos == 0 %}
+            <span class="fase-badge fase-cadastro"><i class="bi bi-pencil"></i>Em cadastro</span>
+            {% elif irp.fase_atual == 'respostas' %}
+            <span class="fase-badge fase-respostas"><i class="bi bi-people"></i>Coletando respostas</span>
+            {% elif irp.fase_atual == 'homologacao' %}
+            <span class="fase-badge fase-homologacao"><i class="bi bi-hourglass-split"></i>Em homologação</span>
+            {% else %}
+            <span class="fase-badge fase-encerrada"><i class="bi bi-lock"></i>Encerrada</span>
+            {% endif %}
+          </td>
+
+          <!-- Itens -->
+          <td class="text-center" data-sort="{{ irp.itens_ativos|stringformat:'06d' }}">{{ irp.itens_ativos }}</td>
+
+          <!-- Respostas -->
+          <td class="text-center" data-sort="{{ irp.total_respostas }}">{{ irp.total_respostas }}</td>
+
+          <!-- Ações -->
+          <td class="text-center">
+            <div class="d-flex gap-1 justify-content-center flex-wrap">
+
+              <!-- [1] Editar -->
+              {% if irp.liberada %}
+              <span data-bs-toggle="tooltip" data-bs-custom-class="tooltip-danger"
+                    data-bs-title="IRP em fluxo — interrompa para editar"
+                    style="display:inline-flex">
+                <span class="irp-acao irp-acao-disabled"><i class="bi bi-pencil-square"></i></span>
+              </span>
+              {% else %}
+              <a href="{% url 'gestao_irp_edit' irp.pk %}" class="irp-acao irp-acao-edit" title="Editar">
+                <i class="bi bi-pencil-square"></i>
+              </a>
+              {% endif %}
+
+              <!-- [2] Gerenciar Itens -->
+              {% if irp.liberada %}
+              <span data-bs-toggle="tooltip" data-bs-custom-class="tooltip-danger"
+                    data-bs-title="A IRP está em fluxo. Interrompa-a para gerenciar os itens"
+                    style="display:inline-flex">
+                <span class="irp-acao irp-acao-disabled"><i class="bi bi-list-ul"></i></span>
+              </span>
+              {% else %}
+              <a href="{% url 'gestao_item_list' irp.pk %}" class="irp-acao irp-acao-itens" title="Gerenciar Itens">
+                <i class="bi bi-list-ul"></i>
+              </a>
+              {% endif %}
+
+              <!-- [3] Resultados -->
+              {% if not irp.liberada and irp.itens_ativos == 0 %}
+                <span class="irp-acao irp-acao-disabled" title="Resultados não disponíveis">
+                  <i class="bi bi-bar-chart"></i>
+                </span>
+              {% elif not irp.liberada %}
+                <span class="irp-acao irp-acao-disabled" title="Resultados não disponíveis">
+                  <i class="bi bi-bar-chart"></i>
+                </span>
+              {% elif irp.fase_atual == 'encerrada' %}
+                <a href="{% url 'gestao_resultados' irp.pk %}" class="irp-acao irp-acao-result" title="Resultados finais">
+                  <i class="bi bi-bar-chart"></i>
+                </a>
+              {% else %}
+                <a href="{% url 'gestao_resultados' irp.pk %}" class="irp-acao irp-acao-result" title="Resultados são parciais">
+                  <i class="bi bi-bar-chart"></i>
+                </a>
+              {% endif %}
+
+              <!-- [4] Exportar Excel -->
+              {% if irp.fase_atual == 'encerrada' and irp.liberada %}
+                <a href="{% url 'gestao_exportar' irp.pk %}" class="irp-acao irp-acao-export" title="Exportar Excel">
+                  <i class="bi bi-file-earmark-spreadsheet"></i>
+                </a>
+              {% else %}
+                <span class="irp-acao irp-acao-disabled" title="Disponível após IRP homologada">
+                  <i class="bi bi-file-earmark-spreadsheet"></i>
+                </span>
+              {% endif %}
+
+              <!-- [5] Liberar / Interromper / Stop -->
+              {% if not irp.liberada %}
+                <form id="form-lib-{{ irp.pk }}" method="post" action="{% url 'gestao_irp_liberar' irp.pk %}">{% csrf_token %}</form>
+                {% if irp.itens_ativos %}
+                <button type="submit" form="form-lib-{{ irp.pk }}"
+                        class="irp-acao irp-acao-liberar"
+                        title="Liberar para respostas"
+                        onclick="return confirm('Liberar a IRP &quot;{{ irp.titulo|escapejs }}&quot; para receber respostas?')">
+                  <i class="bi bi-play-fill"></i>
+                </button>
+                {% else %}
+                <span class="irp-acao irp-acao-disabled" title="Adicione itens antes de liberar para respostas">
+                  <i class="bi bi-play-fill"></i>
+                </span>
+                {% endif %}
+              {% elif irp.fase_atual == 'respostas' %}
+                <form id="form-int-{{ irp.pk }}" method="post" action="{% url 'gestao_irp_interromper' irp.pk %}">{% csrf_token %}</form>
+                <button type="submit" form="form-int-{{ irp.pk }}"
+                        class="irp-acao irp-acao-pausar"
+                        title="Interromper fluxo para ajustes"
+                        onclick="return confirm('Interromper o fluxo da IRP &quot;{{ irp.titulo|escapejs }}&quot;?\n\nAs respostas já coletadas serão mantidas. A IRP poderá ser reliberada após os ajustes.')">
+                  <i class="bi bi-pause-fill"></i>
+                </button>
+              {% elif irp.fase_atual == 'homologacao' %}
+                <span class="irp-acao irp-acao-disabled" title="Em homologação — não é possível interromper">
+                  <i class="bi bi-stop-fill"></i>
+                </span>
+              {% else %}
+                <span class="irp-acao irp-acao-disabled" title="IRP encerrada">
+                  <i class="bi bi-stop-fill"></i>
+                </span>
+              {% endif %}
+
+              <!-- [6] Excluir -->
+              {% if not irp.liberada %}
+                <form id="form-del-{{ irp.pk }}" method="post" action="{% url 'gestao_irp_delete' irp.pk %}">{% csrf_token %}</form>
+                <button type="submit" form="form-del-{{ irp.pk }}"
+                        class="irp-acao irp-acao-del"
+                        title="Excluir IRP"
+                        onclick="return confirm('Excluir permanentemente a IRP &quot;{{ irp.titulo|escapejs }}&quot;?\n\nEsta ação não pode ser desfeita.')">
+                  <i class="bi bi-trash3-fill"></i>
+                </button>
+              {% else %}
+                <span class="irp-acao irp-acao-disabled" title="{% if irp.fase_atual == 'encerrada' %}Não é possível excluir uma IRP homologada{% else %}Não é possível excluir uma IRP em fluxo{% endif %}">
+                  <i class="bi bi-trash3-fill"></i>
+                </span>
+              {% endif %}
+
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" class="text-center text-muted py-5" style="font-family:'Open Sans',sans-serif">
+            <i class="bi bi-inbox fs-2 d-block mb-2 opacity-25"></i>
+            Nenhuma IRP cadastrada.
+            <a href="{% url 'gestao_irp_create' %}">Criar agora</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card-footer bg-white border-top d-flex justify-content-between align-items-center py-2 rodape-tabela">
+    <span id="contador-rodape">
+      Total: <strong>{{ irps.count }}</strong> IRP(s)
+    </span>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const TOTAL_GERAL = {{ irps.count }};
+
+const inputBusca = document.getElementById('busca-irp');
+const btnLimpar  = document.getElementById('btn-limpar-filtros');
+
+const tsFase = new TomSelect('#filtro-fase', {
+  plugins: ['remove_button'],
+  placeholder: 'Todas as fases',
+  onInitialize() { this.wrapper.style.minWidth = '200px'; },
+  onChange: aplicarFiltros,
+});
+
+function aplicarFiltros() {
+  const termo = inputBusca.value.toLowerCase().trim();
+  const fases = tsFase.getValue(); // array de valores selecionados
+  let visiveis = 0;
+
+  document.querySelectorAll('.irp-row').forEach(tr => {
+    const passaBusca = !termo || tr.dataset.busca.includes(termo);
+    const passaFase  = !fases.length || fases.includes(tr.dataset.fase);
+    const mostrar = passaBusca && passaFase;
+    tr.style.display = mostrar ? '' : 'none';
+    if (mostrar) visiveis++;
+  });
+
+  const rodape = document.getElementById('contador-rodape');
+  const filtroAtivo = termo || fases.length;
+  if (filtroAtivo) {
+    rodape.innerHTML = `Exibindo <strong>${visiveis}</strong> de <strong>${TOTAL_GERAL}</strong> IRP(s)`;
+    btnLimpar.classList.remove('d-none');
+  } else {
+    rodape.innerHTML = `Total: <strong>${TOTAL_GERAL}</strong> IRP(s)`;
+    btnLimpar.classList.add('d-none');
+  }
+}
+
+function limparFiltros() {
+  inputBusca.value = '';
+  tsFase.clear();
+  aplicarFiltros();
+}
+
+inputBusca.addEventListener('input', aplicarFiltros);
+
+// Ordenação
+let sortCol = -1, sortAsc = true;
+
+document.querySelectorAll('th.sortable').forEach(th => {
+  th.addEventListener('click', function () {
+    const col = parseInt(this.dataset.col);
+    sortAsc = sortCol === col ? !sortAsc : true;
+    sortCol = col;
+    document.querySelectorAll('th.sortable').forEach(h => h.classList.remove('asc', 'desc'));
+    this.classList.add(sortAsc ? 'asc' : 'desc');
+
+    const tbody = document.getElementById('tbody-irps');
+    Array.from(tbody.querySelectorAll('tr.irp-row'))
+      .sort((a, b) => {
+        const va = (a.querySelectorAll('td')[col]?.dataset.sort ?? '').toLowerCase();
+        const vb = (b.querySelectorAll('td')[col]?.dataset.sort ?? '').toLowerCase();
+        return sortAsc ? va.localeCompare(vb, 'pt-BR') : vb.localeCompare(va, 'pt-BR');
+      })
+      .forEach(tr => tbody.appendChild(tr));
+  });
+});
+
+// Inicializar tooltips Bootstrap (incluindo wrappers de botões desabilitados)
+document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+  new bootstrap.Tooltip(el);
+});
+</script>
+{% endblock %}

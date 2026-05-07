@@ -1,0 +1,76 @@
+{% extends 'base_orcamento.html' %}
+
+{% block title %}Importar Registro de Preço SIPAC — Execução Orçamentária{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between gap-3 mb-3">
+  <div class="d-flex align-items-center gap-2">
+    <a href="{% url 'registro_preco_list' %}" class="btn btn-sm btn-light"><i class="bi bi-arrow-left"></i></a>
+    <div>
+      <h4 class="mb-0 fw-bold">Importar Registro de Preço SIPAC</h4>
+      <small class="text-muted">Use a planilha padrão para trazer licitações anteriores ao sistema.</small>
+    </div>
+  </div>
+  <a href="{% url 'registro_preco_template_xlsx' %}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-file-earmark-spreadsheet me-1"></i>Baixar planilha modelo
+  </a>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white border-0 fw-semibold">
+        <i class="bi bi-upload me-1 text-primary"></i>Arquivo
+      </div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <label class="form-label small fw-semibold">Planilha preenchida</label>
+          <input type="file" name="arquivo" class="form-control" accept=".xlsx" required>
+          <div class="form-text">Formatos aceitos: .xlsx</div>
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-lg me-1"></i>Importar
+            </button>
+            <a href="{% url 'registro_preco_list' %}" class="btn btn-light">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white border-0 fw-semibold">
+        <i class="bi bi-table me-1 text-primary"></i>Campos da planilha
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Campo</th>
+                <th>Uso</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="fw-semibold">Pregão</td><td>Número do pregão/registro no SIPAC.</td></tr>
+              <tr><td class="fw-semibold">Material Licitado</td><td>Descrição geral do material licitado no SIPAC.</td></tr>
+              <tr><td class="fw-semibold">Item</td><td>Número do item licitado.</td></tr>
+              <tr><td class="fw-semibold">Material</td><td>Descrição do material ou serviço.</td></tr>
+              <tr><td class="fw-semibold">Rubrica</td><td>Classificação orçamentária do item.</td></tr>
+              <tr><td class="fw-semibold">Unidade</td><td>Unidade de fornecimento.</td></tr>
+              <tr><td class="fw-semibold">Qtd. Emp.</td><td>Quantidade empenhada/registrada disponível na origem.</td></tr>
+              <tr><td class="fw-semibold">Marca</td><td>Marca homologada, quando houver.</td></tr>
+              <tr><td class="fw-semibold">Valor</td><td>Valor unitário registrado.</td></tr>
+              <tr><td class="fw-semibold">Saldo UFPB</td><td>Saldo remanescente do item na UFPB, quando informado pelo SIPAC.</td></tr>
+              <tr><td class="fw-semibold">Saldo Unidade</td><td>Saldo da unidade. Em pregões do módulo IRP, corresponde à quantidade homologada do item licitado.</td></tr>
+              <tr><td class="fw-semibold">Validade</td><td>Data final de vigência do registro.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

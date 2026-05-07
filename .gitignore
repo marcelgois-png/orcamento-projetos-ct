@@ -1,0 +1,57 @@
+# Ambiente virtual
+venv/
+.venv/
+
+# Bytecode Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Variáveis de ambiente e segredos
+.env
+*.env
+!.env.example
+
+# Banco SQLite local (nunca versionar — dados reais)
+db.sqlite3
+db.sqlite3-journal
+
+# Arquivos gerados pelo Django
+staticfiles/
+media/
+logs/
+
+# Backups e dumps
+backup.json
+backup.sql
+*.dump
+backups/
+
+# Arquivos temporários / desenvolvimento / diagnóstico
+run_server.py
+read_xlsx_temp.py
+xlsx_output.txt
+output.txt
+migrate_log.txt
+_diag_output.txt
+_diag_rubrica.py
+_run_diag.py
+diag_rubrica_cmd.py
+
+# Pacotes/zips temporários
+*.zip
+irp-app-docker-compose.zip
+
+# Planilhas de trabalho (não devem ir pro repo)
+Hierarquia_CT_UFPB_SIPAC.xlsx
+
+# IDE e ferramentas locais
+.vscode/
+.idea/
+*.swp
+.claude/
+
+# Certificados SSL (nunca versionar)
+nginx/certs/*.pem
+nginx/certs/*.crt
+nginx/certs/*.key

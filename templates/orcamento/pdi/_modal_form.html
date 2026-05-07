@@ -1,0 +1,32 @@
+{% load i18n %}
+<div class="modal-header py-2 px-3" style="background:#c6543c">
+  <h6 class="modal-title mb-0 text-white fw-semibold">{{ modal_title }}</h6>
+  <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+</div>
+<form hx-post="{{ form_action }}"
+      hx-target="#pdi-modal-body"
+      hx-swap="innerHTML">
+  {% csrf_token %}
+  <div class="modal-body py-3 px-3">
+    {% for field in form %}
+    <div class="mb-3">
+      <label for="{{ field.id_for_label }}" class="form-label small fw-semibold mb-1">
+        {{ field.label }}{% if field.field.required %} <span class="text-danger">*</span>{% endif %}
+      </label>
+      {{ field }}
+      {% if field.errors %}
+      <div class="text-danger small mt-1">{{ field.errors.0 }}</div>
+      {% endif %}
+      {% if field.help_text %}
+      <div class="form-text text-muted">{{ field.help_text }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  <div class="modal-footer py-2 px-3 bg-light">
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="submit" class="btn btn-sm text-white fw-semibold" style="background:#c6543c">
+      <i class="bi bi-check-lg me-1"></i>Salvar
+    </button>
+  </div>
+</form>
