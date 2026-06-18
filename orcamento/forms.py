@@ -282,9 +282,13 @@ class DespesaForm(forms.ModelForm):
             choices=_rubrica_choices_por_natureza(),
             widget=forms.Select(attrs={'class': 'form-select'}),
         )
+        # Em edição, preserva a situação atual da despesa mesmo que ela tenha
+        # sido desativada. Em criação (sem pk), oferece apenas situações ativas,
+        # para nunca exibir uma opção que a validação de registro vai rejeitar.
+        situacao_incluir = getattr(self.instance, 'situacao', None) if getattr(self.instance, 'pk', None) else None
         self.fields['situacao'] = forms.ChoiceField(
             label='Situação',
-            choices=_situacao_despesa_choices(getattr(self.instance, 'situacao', None)),
+            choices=_situacao_despesa_choices(situacao_incluir),
             widget=forms.Select(attrs={'class': 'form-select'}),
         )
         self.fields['recurso'].required = True
