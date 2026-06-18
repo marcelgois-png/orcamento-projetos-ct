@@ -125,7 +125,7 @@
                 </a>
               </td>
               <td class="text-center">{{ d.setor.sigla|default:"-" }}</td>
-              <td class="text-nowrap">{{ d.get_rubrica_display|truncatechars:25 }}</td>
+              <td class="text-nowrap">{{ d.rubrica|truncatechars:25 }}</td>
               <td class="text-center">{{ d.nota_empenho|default:"-" }}</td>
               <td class="text-end">{{ d.quantidade|floatformat:0 }}</td>
               <td class="text-end text-nowrap fw-semibold">R$ {{ d.valor_comprometido|floatformat:2|intcomma }}</td>

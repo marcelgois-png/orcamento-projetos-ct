@@ -206,7 +206,7 @@ class TransferenciaForm(forms.ModelForm):
                 self.add_error(
                     'destino',
                     f'Transferência entre setores: a natureza do destino deve ser '
-                    f'"{origem.get_natureza_display()}" (igual à da origem).',
+                    f'"{origem.natureza}" (igual à da origem).',
                 )
             if destino.rubrica != origem.rubrica:
                 self.add_error(

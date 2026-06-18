@@ -197,8 +197,8 @@ class RecursoOrcamentario(models.Model):
         related_name='recursos_orcamentarios', verbose_name='Setor'
     )
     origem_recurso    = models.CharField('Origem do Recurso', max_length=200)
-    natureza          = models.CharField('Natureza do Recurso', max_length=10, choices=NATUREZA_CHOICES)
-    rubrica           = models.CharField('Rubrica', max_length=120, choices=RUBRICA_CHOICES, blank=True)
+    natureza          = models.CharField('Natureza do Recurso', max_length=100)
+    rubrica           = models.CharField('Rubrica', max_length=120, blank=True)
     valor_orcamentario = models.DecimalField('Valor Orçamentário (R$)', max_digits=12, decimal_places=2)
     observacoes       = models.TextField('Observações', blank=True)
     criado_por        = models.ForeignKey(
@@ -215,7 +215,7 @@ class RecursoOrcamentario(models.Model):
 
     def __str__(self):
         setor_str = str(self.setor) if self.setor else 'Sem setor'
-        return f'{self.ano_fiscal} | {setor_str} | {self.origem_recurso} | {self.get_natureza_display()}'
+        return f'{self.ano_fiscal} | {setor_str} | {self.origem_recurso} | {self.natureza}'
 
     @property
     def saldo_atual(self):
@@ -384,7 +384,7 @@ class Despesa(models.Model):
     quantidade        = models.DecimalField('Qtde', max_digits=12, decimal_places=3)
     valor_unitario    = models.DecimalField('Valor Unitário (R$)', max_digits=12, decimal_places=2)
     valor_comprometido = models.DecimalField('Valor Comprometido (R$)', max_digits=12, decimal_places=2)
-    rubrica           = models.CharField('Rubrica', max_length=120, choices=RUBRICA_CHOICES, blank=True)
+    rubrica           = models.CharField('Rubrica', max_length=120, blank=True)
     setor             = models.ForeignKey(
         Setor, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='despesas_orcamento', verbose_name='Setor'
@@ -395,7 +395,7 @@ class Despesa(models.Model):
     )
     situacao          = models.CharField('Situação', max_length=50, default='empenhada')
     observacao        = models.TextField('Observação', blank=True)
-    natureza          = models.CharField('Natureza do Recurso', max_length=10, choices=NATUREZA_CHOICES)
+    natureza          = models.CharField('Natureza do Recurso', max_length=100)
     categoria_material = models.CharField('Categoria do Material', max_length=100, blank=True)
 
     perspectiva_pdi   = models.ForeignKey(
