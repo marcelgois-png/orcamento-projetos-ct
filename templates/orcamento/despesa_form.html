@@ -745,6 +745,10 @@ function adicionarItemDespesa(id) {
   const recurso = recursoSelecionado();
   if (!item || !itemCompativelComRecurso(item, recurso)) return;
   if (itensDespesa.some(row => String(row.registro_preco_item) === String(id))) return;
+  if (item.situacao === 'vencido' &&
+      !confirm('Este pregão está vencido — confirma?\n\nSugestão: verificar se a data da despesa é anterior ao vencimento do pregão.')) {
+    return;
+  }
   itensDespesa.push({
     registro_preco_item: String(item.id),
     quantidade: '1',
