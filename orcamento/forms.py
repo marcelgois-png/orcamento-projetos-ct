@@ -16,9 +16,9 @@ def _setor_qs():
 
 
 def _ano_choices():
-    """2021 até o ano corrente, sempre inclusivo."""
+    """2020 até o ano corrente, sempre inclusivo."""
     ano_atual = date.today().year
-    return [(a, str(a)) for a in range(2021, ano_atual + 1)]
+    return [(a, str(a)) for a in range(2020, ano_atual + 1)]
 
 
 def _natureza_choices():

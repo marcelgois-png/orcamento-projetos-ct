@@ -34,10 +34,10 @@ from .forms import (
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _anos_disponiveis():
-    """Retorna anos de 2021 ao corrente, mais quaisquer anos já cadastrados fora do range."""
+    """Retorna anos de 2020 ao corrente, mais quaisquer anos já cadastrados fora do range."""
     from datetime import date
     ano_atual = date.today().year
-    fixos = set(range(2021, ano_atual + 1))
+    fixos = set(range(2020, ano_atual + 1))
     existentes = set(
         RecursoOrcamentario.objects.values_list('ano_fiscal', flat=True).distinct()
     )
@@ -1643,15 +1643,18 @@ def _contexto_despesa(ano_atual):
         return {'label': label, 'codigo': codigo, 'natureza_key': ''}
 
     """Monta o contexto de recursos orçamentários para o formulário de despesa."""
+    # Todos os anos: permite lançar despesas de exercícios anteriores. O ano é
+    # escolhido na cascata do formulário (campo Ano Fiscal), evitando ambiguidade
+    # entre recursos de mesma combinação setor/origem/natureza/rubrica em anos distintos.
     recursos = (
         RecursoOrcamentario.objects
         .select_related('setor')
-        .filter(ano_fiscal=ano_atual)
-        .order_by('setor__sigla', 'origem_recurso', 'natureza', 'rubrica')
+        .order_by('-ano_fiscal', 'setor__sigla', 'origem_recurso', 'natureza', 'rubrica')
     )
     recursos_json = json.dumps([
         {
             'id': r.pk,
+            'ano_fiscal': r.ano_fiscal,
             'setor': str(r.setor_id) if r.setor_id else '',
             'setor_label': _setor_catalog_label(r.setor),
             'origem_recurso': r.origem_recurso,

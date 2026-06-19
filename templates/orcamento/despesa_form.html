@@ -260,6 +260,14 @@
       <div class="res-rows">
         <div class="res-line">
           <div class="res-field">
+            <label class="res-label">Ano Fiscal</label>
+            <select class="form-select form-select-sm recurso-choice" data-field="ano_fiscal"></select>
+          </div>
+          <div class="res-field"></div>
+        </div>
+
+        <div class="res-line">
+          <div class="res-field">
             <label class="res-label">Setor</label>
             <select class="form-select form-select-sm recurso-choice" data-field="setor"></select>
           </div>
@@ -513,6 +521,7 @@ const despesaRecursos  = {{ recursos_json|default:'[]'|safe }};
 const licitacaoItens   = {{ licitacao_itens_json|default:'[]'|safe }};
 const recursosPorId    = new Map(despesaRecursos.map(r => [String(r.id), r]));
 const licitacaoPorId   = new Map(licitacaoItens.map(i => [String(i.id), i]));
+const ANO_ATUAL        = {{ ano_atual|default:0 }};
 const despesaEditando  = {% if object %}true{% else %}false{% endif %};
 const _itensIniciais   = {% if object %}{{ itens_iniciais_json|default:'[]'|safe }}{% else %}[]{% endif %};
 let itensDespesa  = _itensIniciais.filter(r => !r.is_livre);
@@ -550,7 +559,7 @@ pdiData.forEach(p => p.objetivos.forEach(o => {
   o.indicadores.forEach(i => pdiIndMap.set(i.id, i));
 }));
 
-const camposRecurso   = ['setor', 'origem_recurso', 'natureza', 'rubrica'];
+const camposRecurso   = ['ano_fiscal', 'setor', 'origem_recurso', 'natureza', 'rubrica'];
 const estado          = {};
 const controles       = {};
 let atualizando       = false;
@@ -1206,6 +1215,9 @@ document.getElementById('despesa-form')?.addEventListener('submit', event => {
     camposRecurso.forEach(c => { estado[c] = String(recurso[c] ?? ''); });
   }
 })();
+
+// Novo lançamento: pré-seleciona o ano corrente (editável p/ lançar anos anteriores).
+if (!estado['ano_fiscal'] && ANO_ATUAL) estado['ano_fiscal'] = String(ANO_ATUAL);
 
 // ── Arranque ──────────────────────────────────────────────────────────────────
 // Se há dados do POST (erro de validação), eles sobrepõem _itensIniciais
