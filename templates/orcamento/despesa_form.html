@@ -405,6 +405,7 @@
                   <option value="">Vigentes e a vencer</option>
                   <option value="vigente">Somente vigentes</option>
                   <option value="a_vencer">A vencer</option>
+                  <option value="vencido">Vencidas</option>
                   <option value="sem_validade">Sem validade</option>
                   <option value="todos">Todas, exceto incompatíveis</option>
                 </select>
@@ -663,7 +664,6 @@ function totalItem(row) {
 
 function itemCompativelComRecurso(item, recurso) {
   if (!item || !recurso) return false;
-  if (item.situacao === 'vencido') return false;
   const mesmaRubrica = (
     String(item.rubrica_norm || '') === String(recurso.rubrica_norm || '') ||
     (item.rubrica_codigo && recurso.rubrica_codigo && String(item.rubrica_codigo) === String(recurso.rubrica_codigo))
@@ -689,7 +689,14 @@ function licitacoesFiltradas() {
   const situacao = document.getElementById('licitacao-situacao')?.value || '';
   return licitacaoItens.filter(item => {
     if (!itemCompativelComRecurso(item, recurso)) return false;
-    if (situacao && situacao !== 'todos' && item.situacao !== situacao) return false;
+    // Filtro por vigência. Padrão ('') esconde as vencidas; 'todos' mostra
+    // todas as compatíveis (inclusive vencidas); os demais filtram exatamente
+    // pela situação escolhida (vigente / a_vencer / vencido / sem_validade).
+    if (situacao === '') {
+      if (item.situacao === 'vencido') return false;
+    } else if (situacao !== 'todos' && item.situacao !== situacao) {
+      return false;
+    }
     if (!busca) return true;
     return filtroTextoItem(item).includes(busca);
   }).slice(0, 80);

@@ -1825,9 +1825,8 @@ def despesa_create(request):
             if recurso and not rubrica_compativel:
                 erros.append(f'Linha {idx}: a rubrica do item não corresponde à rubrica do recurso selecionado.')
                 continue
-            if item.situacao_vigencia == 'vencido':
-                erros.append(f'Linha {idx}: o item selecionado está vencido.')
-                continue
+            # Itens de licitação vencidos são permitidos: a equipe precisa registrar
+            # despesas vinculadas a pregões cuja validade já expirou.
             if quantidade <= 0:
                 erros.append(f'Linha {idx}: informe quantidade maior que zero.')
                 continue
