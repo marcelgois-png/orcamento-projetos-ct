@@ -1613,6 +1613,234 @@ def despesa_list(request):
     return render(request, 'orcamento/despesa_list.html', ctx)
 
 
+def _resolver_situacao(raw):
+    """Resolve a chave da situação da despesa a partir do texto da planilha.
+    Vazio assume 'empenhada'. Retorna a chave, ou None se não reconhecida."""
+    if raw is None or not str(raw).strip():
+        return 'empenhada'
+    raw_norm = _orc_norm(str(raw))
+    for s in SituacaoDespesa.objects.all():
+        if raw_norm in {_orc_norm(s.nome), _orc_norm(s.chave)}:
+            return s.chave
+    return None
+
+
+@gestor_financeiro_required
+def despesa_importar(request):
+    """Importa despesas (execução orçamentária) via planilha Excel ou CSV.
+
+    Colunas: Data, Discriminação, Setor, Rubrica, Nota Empenho, Qtde,
+    Comprometido, Situação. Pensado para inserir rapidamente a execução de
+    anos anteriores. As despesas importadas não ficam vinculadas a um recurso
+    específico (são registros históricos)."""
+    if request.method == 'POST':
+        arquivo = request.FILES.get('arquivo')
+        if not arquivo:
+            messages.error(request, 'Nenhum arquivo enviado.')
+            return redirect('despesa_importar')
+
+        nome = arquivo.name.lower()
+        try:
+            if nome.endswith('.xlsx'):
+                linhas = _orc_rows_from_xlsx(arquivo)
+            else:
+                linhas = _orc_rows_from_csv(arquivo)
+        except Exception as e:
+            messages.error(request, f'Erro ao ler arquivo: {e}')
+            return redirect('despesa_importar')
+
+        rubrica_natureza_por_label = {
+            str(r): (r.natureza.nome if r.natureza else '')
+            for r in Rubrica.objects.filter(ativo=True).select_related('natureza')
+        }
+
+        count = 0
+        erros = []
+        from django.db import transaction
+        with transaction.atomic():
+            for i, row in enumerate(linhas, 2):  # linha 2 = após cabeçalho
+                try:
+                    data_despesa = _registro_parse_date(row.get(_orc_norm('DATA')))
+                    if not data_despesa:
+                        erros.append(f'Linha {i}: DATA inválida ou ausente.')
+                        continue
+
+                    discriminacao = str(
+                        row.get(_orc_norm('DISCRIMINACAO')) or
+                        row.get(_orc_norm('DISCRIMINACAO DO ITEM')) or ''
+                    ).strip()
+                    if not discriminacao:
+                        erros.append(f'Linha {i}: DISCRIMINAÇÃO obrigatória.')
+                        continue
+
+                    setor_raw = row.get(_orc_norm('SETOR')) or ''
+                    setor = _resolver_setor(setor_raw)
+                    if setor_raw and not setor:
+                        erros.append(f'Linha {i}: SETOR não encontrado ("{setor_raw}").')
+                        continue
+
+                    rubrica = _resolver_rubrica(row.get(_orc_norm('RUBRICA')))
+                    if not rubrica:
+                        erros.append(
+                            f'Linha {i}: RUBRICA inválida ou não cadastrada '
+                            f'("{row.get(_orc_norm("RUBRICA"))}").'
+                        )
+                        continue
+                    natureza = rubrica_natureza_por_label.get(rubrica, '')
+
+                    qtde = _orc_parse_decimal(row.get(_orc_norm('QTDE'))) or Decimal('1')
+                    if qtde <= 0:
+                        qtde = Decimal('1')
+                    comprometido = _orc_parse_decimal(row.get(_orc_norm('COMPROMETIDO')))
+                    if comprometido is None or comprometido < 0:
+                        erros.append(f'Linha {i}: COMPROMETIDO inválido.')
+                        continue
+                    valor_unitario = (comprometido / qtde).quantize(Decimal('0.01'))
+
+                    situacao = _resolver_situacao(row.get(_orc_norm('SITUACAO')))
+                    if not situacao:
+                        erros.append(
+                            f'Linha {i}: SITUAÇÃO não reconhecida '
+                            f'("{row.get(_orc_norm("SITUACAO"))}").'
+                        )
+                        continue
+
+                    nota_empenho = str(
+                        row.get(_orc_norm('NOTA EMPENHO')) or
+                        row.get(_orc_norm('NOTA DE EMPENHO')) or ''
+                    ).strip()
+
+                    Despesa.objects.create(
+                        data_despesa=data_despesa,
+                        discriminacao=discriminacao,
+                        setor=setor,
+                        rubrica=rubrica,
+                        natureza=natureza,
+                        nota_empenho=nota_empenho,
+                        quantidade=qtde,
+                        valor_unitario=valor_unitario,
+                        valor_comprometido=comprometido,
+                        situacao=situacao,
+                        criada_por=request.user,
+                    )
+                    count += 1
+                except Exception as e:
+                    erros.append(f'Linha {i}: {e}')
+
+        if erros:
+            messages.warning(
+                request,
+                f'{count} despesa(s) importada(s). {len(erros)} erro(s): ' +
+                ' | '.join(erros[:5])
+            )
+        else:
+            messages.success(request, f'{count} despesa(s) importada(s) com sucesso!')
+        return redirect('despesa_list')
+
+    return render(request, 'orcamento/despesa_importar.html')
+
+
+@gestor_financeiro_required
+def despesa_template_xlsx(request):
+    """Gera e devolve a planilha modelo para importação de despesas."""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.worksheet.datavalidation import DataValidation
+
+    setores = list(Setor.objects.filter(ativo=True).order_by('sigla', 'codigo'))
+    rubricas_qs = list(Rubrica.objects.filter(ativo=True).order_by('ordem', 'codigo'))
+    situacoes = list(SituacaoDespesa.objects.filter(ativo=True).order_by('ordem', 'nome'))
+
+    setor_labels = [_setor_catalog_label(s) for s in setores]
+    rubrica_labels = [str(r) for r in rubricas_qs]
+    situacao_labels = [s.nome for s in situacoes]
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Despesas'
+
+    headers = [
+        'DATA', 'DISCRIMINAÇÃO', 'SETOR', 'RUBRICA',
+        'NOTA EMPENHO', 'QTDE', 'COMPROMETIDO', 'SITUAÇÃO',
+    ]
+    col_widths = [14, 50, 30, 40, 18, 10, 16, 16]
+
+    header_fill = PatternFill('solid', fgColor='C6543C')
+    header_font = Font(bold=True, color='FFFFFF', name='Calibri', size=11)
+    thin = Side(style='thin', color='AAAAAA')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    for col_idx, (header, width) in enumerate(zip(headers, col_widths), 1):
+        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = border
+        ws.column_dimensions[cell.column_letter].width = width
+    ws.row_dimensions[1].height = 22
+
+    # Linha de exemplo
+    example = [
+        f'15/04/{timezone.now().year}',
+        'Aparelho de ar-condicionado split 12000 BTUs',
+        setor_labels[0] if setor_labels else '',
+        next((l for l in rubrica_labels if l.startswith('449052')), rubrica_labels[0] if rubrica_labels else ''),
+        f'{timezone.now().year}NE000980',
+        1,
+        '1900,00',
+        situacao_labels[0] if situacao_labels else 'Empenhada',
+    ]
+    ex_font = Font(name='Calibri', size=10, italic=True, color='555555')
+    for col_idx, value in enumerate(example, 1):
+        cell = ws.cell(row=2, column=col_idx, value=value)
+        cell.font = ex_font
+        cell.border = border
+
+    # Aba de referência
+    ws_ref = wb.create_sheet('Referência')
+    ref_data = [
+        ('SETOR', setor_labels, 30),
+        ('RUBRICA', rubrica_labels, 40),
+        ('SITUAÇÃO', situacao_labels, 18),
+    ]
+    for col_idx, (title, values, width) in enumerate(ref_data, 1):
+        cell = ws_ref.cell(row=1, column=col_idx, value=title)
+        cell.font = Font(bold=True, color='FFFFFF')
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center')
+        cell.border = border
+        ws_ref.column_dimensions[cell.column_letter].width = width
+        for row_idx, value in enumerate(values, 2):
+            ref_cell = ws_ref.cell(row=row_idx, column=col_idx, value=value)
+            ref_cell.border = border
+
+    def add_list_validation(col_letter, ref_col, values_count, label):
+        if values_count <= 0:
+            return
+        formula = f"'Referência'!${ref_col}$2:${ref_col}${values_count + 1}"
+        dv = DataValidation(type='list', formula1=formula, allow_blank=True)
+        dv.errorTitle = f'{label} inválido'
+        dv.error = f'Escolha um valor cadastrado na aba Referência para {label}.'
+        dv.showErrorMessage = True
+        ws.add_data_validation(dv)
+        dv.add(f'{col_letter}2:{col_letter}501')
+
+    add_list_validation('C', 'A', len(setor_labels), 'SETOR')
+    add_list_validation('D', 'B', len(rubrica_labels), 'RUBRICA')
+    add_list_validation('H', 'C', len(situacao_labels), 'SITUAÇÃO')
+
+    ws.freeze_panes = 'A2'
+    ws.auto_filter.ref = 'A1:H1'
+    ws_ref.freeze_panes = 'A2'
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="modelo_despesas.xlsx"'
+    wb.save(response)
+    return response
+
+
 def _is_rubrica_material(rubrica_str):
     s = (rubrica_str or '').lower()
     return 'consumo' in s or 'permanente' in s

@@ -1,0 +1,89 @@
+{% extends 'base_orcamento.html' %}
+
+{% block title %}Importar Despesas — Execução Orçamentária{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12">
+
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <a href="{% url 'despesa_list' %}" class="btn btn-sm btn-light"><i class="bi bi-arrow-left"></i></a>
+      <h5 class="mb-0 fw-bold">Importar Despesas via Planilha</h5>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center py-3 px-3">
+        <span class="fw-semibold"><i class="bi bi-upload me-1"></i>Enviar planilha</span>
+        <a href="{% url 'despesa_template_xlsx' %}" class="btn btn-sm btn-success fw-semibold">
+          <i class="bi bi-file-earmark-excel me-1"></i>Baixar Planilha Modelo
+        </a>
+      </div>
+      <div class="card-body p-4">
+
+        <!-- Formato da planilha -->
+        <div class="alert border-0 mb-4" style="background:#fff5f2;border-left:4px solid #c6543c !important;border-left-style:solid !important">
+          <h6 class="fw-bold mb-2"><i class="bi bi-file-earmark-excel me-1" style="color:#c6543c"></i>Formato da planilha (.xlsx ou .csv)</h6>
+          <p class="small mb-2">A primeira linha deve conter os cabeçalhos abaixo. Use a <strong>Planilha Modelo</strong> disponível acima — ela já inclui uma aba de referência com setores, rubricas e situações válidas.</p>
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered mb-0 small bg-white">
+              <thead class="table-light">
+                <tr>
+                  <th>DATA</th>
+                  <th>DISCRIMINAÇÃO</th>
+                  <th>SETOR</th>
+                  <th>RUBRICA</th>
+                  <th>NOTA EMPENHO</th>
+                  <th>QTDE</th>
+                  <th>COMPROMETIDO</th>
+                  <th>SITUAÇÃO</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="text-muted fst-italic">
+                  <td>15/04/2026</td>
+                  <td>Aparelho de ar-condicionado split 12000 BTUs</td>
+                  <td>DAU</td>
+                  <td>449052 - Material Permanente</td>
+                  <td>2026NE000980</td>
+                  <td>1</td>
+                  <td>1900,00</td>
+                  <td>Empenhada</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <ul class="small text-muted mt-3 mb-0 ps-3">
+            <li><strong>DATA</strong> aceita os formatos <code>dd/mm/aaaa</code> ou <code>aaaa-mm-dd</code>. O ano da despesa vem desta data (permite exercícios anteriores).</li>
+            <li><strong>RUBRICA</strong> deve ser uma das cadastradas (a natureza é deduzida dela automaticamente).</li>
+            <li><strong>QTDE</strong> vazio assume 1. O <strong>COMPROMETIDO</strong> é o valor total da linha.</li>
+            <li><strong>SITUAÇÃO</strong> vazia assume <code>Empenhada</code>.</li>
+          </ul>
+        </div>
+
+        <div class="alert alert-secondary border-0 py-2 mb-4 small">
+          <i class="bi bi-info-circle me-1"></i>
+          As despesas importadas são registros históricos e <strong>não ficam vinculadas a um recurso</strong> específico. Cada linha gera uma nova despesa.
+        </div>
+
+        <!-- Formulário de upload -->
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Arquivo <span class="text-danger">*</span></label>
+            <input type="file" name="arquivo" class="form-control" accept=".xlsx,.csv" required>
+            <div class="form-text">Planilha Excel (.xlsx) ou CSV separado por ponto-e-vírgula (;).</div>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-upload me-1"></i>Importar
+            </button>
+            <a href="{% url 'despesa_list' %}" class="btn btn-light">Cancelar</a>
+          </div>
+        </form>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

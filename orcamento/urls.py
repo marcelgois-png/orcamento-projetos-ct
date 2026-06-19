@@ -52,6 +52,8 @@ urlpatterns = [
     # Despesas
     path('despesas/', views.despesa_list, name='despesa_list'),
     path('despesas/criar/', views.despesa_create, name='despesa_create'),
+    path('despesas/importar/', views.despesa_importar, name='despesa_importar'),
+    path('despesas/planilha-modelo/', views.despesa_template_xlsx, name='despesa_template_xlsx'),
     path('despesas/excluir-lote/', views.despesa_excluir_lote, name='despesa_excluir_lote'),
     path('despesas/<int:pk>/editar/', views.despesa_edit, name='despesa_edit'),
     path('despesas/<int:pk>/excluir/', views.despesa_delete, name='despesa_delete'),
