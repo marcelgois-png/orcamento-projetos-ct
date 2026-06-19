@@ -1629,10 +1629,11 @@ def _resolver_situacao(raw):
 def despesa_importar(request):
     """Importa despesas (execução orçamentária) via planilha Excel ou CSV.
 
-    Colunas: Data, Discriminação, Setor, Rubrica, Nota Empenho, Qtde,
-    Comprometido, Situação. Pensado para inserir rapidamente a execução de
-    anos anteriores. As despesas importadas não ficam vinculadas a um recurso
-    específico (são registros históricos)."""
+    Colunas: Data, Discriminação, Setor, Origem do Recurso, Rubrica,
+    Nota Empenho, Qtde, Comprometido, Situação. Pensado para inserir
+    rapidamente a execução de anos anteriores. Cada despesa é vinculada ao
+    recurso correspondente (ano da data + setor + origem + natureza + rubrica),
+    de modo que deduz do saldo do recurso."""
     if request.method == 'POST':
         arquivo = request.FILES.get('arquivo')
         if not arquivo:
@@ -1673,10 +1674,12 @@ def despesa_importar(request):
                         erros.append(f'Linha {i}: DISCRIMINAÇÃO obrigatória.')
                         continue
 
-                    setor_raw = row.get(_orc_norm('SETOR')) or ''
-                    setor = _resolver_setor(setor_raw)
-                    if setor_raw and not setor:
-                        erros.append(f'Linha {i}: SETOR não encontrado ("{setor_raw}").')
+                    setor = _resolver_setor(row.get(_orc_norm('SETOR')))
+                    if not setor:
+                        erros.append(
+                            f'Linha {i}: SETOR inválido ou não cadastrado '
+                            f'("{row.get(_orc_norm("SETOR"))}").'
+                        )
                         continue
 
                     rubrica = _resolver_rubrica(row.get(_orc_norm('RUBRICA')))
@@ -1687,6 +1690,34 @@ def despesa_importar(request):
                         )
                         continue
                     natureza = rubrica_natureza_por_label.get(rubrica, '')
+
+                    # Vincula a despesa ao recurso orçamentário (para deduzir do saldo).
+                    # Recurso = ano (da data) + setor + origem + natureza + rubrica.
+                    ano = data_despesa.year
+                    origem = _resolver_origem(
+                        row.get(_orc_norm('ORIGEM DO RECURSO')) or row.get(_orc_norm('ORIGEM'))
+                    )
+                    rec_qs = RecursoOrcamentario.objects.filter(
+                        ano_fiscal=ano, setor=setor, natureza=natureza, rubrica=rubrica,
+                    )
+                    if origem:
+                        rec_qs = rec_qs.filter(origem_recurso=origem)
+                    recursos_match = list(rec_qs[:2])
+                    if not recursos_match:
+                        erros.append(
+                            f'Linha {i}: nenhum recurso orçamentário encontrado para '
+                            f'{ano} / {setor} / {origem or "(origem não informada)"} / {natureza} / {rubrica}. '
+                            f'Cadastre o orçamento correspondente antes.'
+                        )
+                        continue
+                    if len(recursos_match) > 1:
+                        erros.append(
+                            f'Linha {i}: mais de um recurso corresponde a '
+                            f'{ano} / {setor} / {natureza} / {rubrica}. '
+                            f'Informe a coluna ORIGEM DO RECURSO para desambiguar.'
+                        )
+                        continue
+                    recurso = recursos_match[0]
 
                     qtde = _orc_parse_decimal(row.get(_orc_norm('QTDE'))) or Decimal('1')
                     if qtde <= 0:
@@ -1713,9 +1744,10 @@ def despesa_importar(request):
                     Despesa.objects.create(
                         data_despesa=data_despesa,
                         discriminacao=discriminacao,
-                        setor=setor,
-                        rubrica=rubrica,
-                        natureza=natureza,
+                        recurso=recurso,
+                        setor=recurso.setor,
+                        rubrica=recurso.rubrica,
+                        natureza=recurso.natureza,
                         nota_empenho=nota_empenho,
                         quantidade=qtde,
                         valor_unitario=valor_unitario,
@@ -1748,10 +1780,12 @@ def despesa_template_xlsx(request):
     from openpyxl.worksheet.datavalidation import DataValidation
 
     setores = list(Setor.objects.filter(ativo=True).order_by('sigla', 'codigo'))
+    origens = list(OrigemRecurso.objects.filter(ativo=True).order_by('ordem', 'nome'))
     rubricas_qs = list(Rubrica.objects.filter(ativo=True).order_by('ordem', 'codigo'))
     situacoes = list(SituacaoDespesa.objects.filter(ativo=True).order_by('ordem', 'nome'))
 
     setor_labels = [_setor_catalog_label(s) for s in setores]
+    origem_labels = [o.nome for o in origens]
     rubrica_labels = [str(r) for r in rubricas_qs]
     situacao_labels = [s.nome for s in situacoes]
 
@@ -1760,10 +1794,10 @@ def despesa_template_xlsx(request):
     ws.title = 'Despesas'
 
     headers = [
-        'DATA', 'DISCRIMINAÇÃO', 'SETOR', 'RUBRICA',
+        'DATA', 'DISCRIMINAÇÃO', 'SETOR', 'ORIGEM DO RECURSO', 'RUBRICA',
         'NOTA EMPENHO', 'QTDE', 'COMPROMETIDO', 'SITUAÇÃO',
     ]
-    col_widths = [14, 50, 30, 40, 18, 10, 16, 16]
+    col_widths = [14, 50, 30, 28, 40, 18, 10, 16, 16]
 
     header_fill = PatternFill('solid', fgColor='C6543C')
     header_font = Font(bold=True, color='FFFFFF', name='Calibri', size=11)
@@ -1784,6 +1818,7 @@ def despesa_template_xlsx(request):
         f'15/04/{timezone.now().year}',
         'Aparelho de ar-condicionado split 12000 BTUs',
         setor_labels[0] if setor_labels else '',
+        origem_labels[0] if origem_labels else '',
         next((l for l in rubrica_labels if l.startswith('449052')), rubrica_labels[0] if rubrica_labels else ''),
         f'{timezone.now().year}NE000980',
         1,
@@ -1800,6 +1835,7 @@ def despesa_template_xlsx(request):
     ws_ref = wb.create_sheet('Referência')
     ref_data = [
         ('SETOR', setor_labels, 30),
+        ('ORIGEM DO RECURSO', origem_labels, 28),
         ('RUBRICA', rubrica_labels, 40),
         ('SITUAÇÃO', situacao_labels, 18),
     ]
@@ -1826,11 +1862,12 @@ def despesa_template_xlsx(request):
         dv.add(f'{col_letter}2:{col_letter}501')
 
     add_list_validation('C', 'A', len(setor_labels), 'SETOR')
-    add_list_validation('D', 'B', len(rubrica_labels), 'RUBRICA')
-    add_list_validation('H', 'C', len(situacao_labels), 'SITUAÇÃO')
+    add_list_validation('D', 'B', len(origem_labels), 'ORIGEM DO RECURSO')
+    add_list_validation('E', 'C', len(rubrica_labels), 'RUBRICA')
+    add_list_validation('I', 'D', len(situacao_labels), 'SITUAÇÃO')
 
     ws.freeze_panes = 'A2'
-    ws.auto_filter.ref = 'A1:H1'
+    ws.auto_filter.ref = 'A1:I1'
     ws_ref.freeze_panes = 'A2'
 
     response = HttpResponse(

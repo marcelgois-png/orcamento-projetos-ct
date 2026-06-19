@@ -31,6 +31,7 @@
                   <th>DATA</th>
                   <th>DISCRIMINAÇÃO</th>
                   <th>SETOR</th>
+                  <th>ORIGEM DO RECURSO</th>
                   <th>RUBRICA</th>
                   <th>NOTA EMPENHO</th>
                   <th>QTDE</th>
@@ -43,6 +44,7 @@
                   <td>15/04/2026</td>
                   <td>Aparelho de ar-condicionado split 12000 BTUs</td>
                   <td>DAU</td>
+                  <td>Discricionário</td>
                   <td>449052 - Material Permanente</td>
                   <td>2026NE000980</td>
                   <td>1</td>
@@ -54,8 +56,9 @@
           </div>
 
           <ul class="small text-muted mt-3 mb-0 ps-3">
-            <li><strong>DATA</strong> aceita os formatos <code>dd/mm/aaaa</code> ou <code>aaaa-mm-dd</code>. O ano da despesa vem desta data (permite exercícios anteriores).</li>
+            <li><strong>DATA</strong> aceita <code>dd/mm/aaaa</code> ou <code>aaaa-mm-dd</code>. O ano da despesa vem desta data (permite exercícios anteriores).</li>
             <li><strong>RUBRICA</strong> deve ser uma das cadastradas (a natureza é deduzida dela automaticamente).</li>
+            <li><strong>ORIGEM DO RECURSO</strong> pode ficar em branco se houver apenas um recurso para o ano/setor/rubrica; informe-a quando existir mais de uma origem.</li>
             <li><strong>QTDE</strong> vazio assume 1. O <strong>COMPROMETIDO</strong> é o valor total da linha.</li>
             <li><strong>SITUAÇÃO</strong> vazia assume <code>Empenhada</code>.</li>
           </ul>
@@ -63,7 +66,8 @@
 
         <div class="alert alert-secondary border-0 py-2 mb-4 small">
           <i class="bi bi-info-circle me-1"></i>
-          As despesas importadas são registros históricos e <strong>não ficam vinculadas a um recurso</strong> específico. Cada linha gera uma nova despesa.
+          Cada linha é <strong>vinculada ao recurso orçamentário correspondente e deduz do saldo</strong>.
+          Cadastre o <strong>orçamento (recurso)</strong> do ano <em>antes</em> de importar as despesas — linhas sem recurso correspondente são reportadas como erro.
         </div>
 
         <!-- Formulário de upload -->
