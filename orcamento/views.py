@@ -1604,8 +1604,10 @@ def despesa_list(request):
         'despesas':          qs,
         'total_comprometido': total_comprometido,
         'situacoes':         SituacaoDespesa.objects.all(),
+        # .order_by() limpa o ordering padrão (-data_despesa) do Meta: sem isso o
+        # DISTINCT considera a data completa e o mesmo ano aparece repetido no filtro.
         'anos': sorted(
-            Despesa.objects.values_list('data_despesa__year', flat=True).distinct()
+            Despesa.objects.order_by().values_list('data_despesa__year', flat=True).distinct()
         ),
     }
     return render(request, 'orcamento/despesa_list.html', ctx)
