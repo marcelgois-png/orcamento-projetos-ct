@@ -205,7 +205,7 @@ def selecionar_modulo(request):
         perfil = request.user.perfil
         modulos = perfil.modulos_disponiveis
     except PerfilUsuario.DoesNotExist:
-        modulos = ['irp']
+        modulos = ['irp', 'orcamento'] if request.user.is_superuser else ['irp']
 
     if len(modulos) == 1:
         if modulos[0] == 'orcamento':

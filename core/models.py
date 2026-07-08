@@ -149,6 +149,9 @@ class PerfilUsuario(models.Model):
     @property
     def modulos_disponiveis(self):
         """Lista de módulos acessíveis para a tela de seleção."""
+        # Superusuário Django tem acesso total (consistente com _tem_perfil).
+        if self.usuario_id and self.usuario.is_superuser:
+            return ['irp', 'orcamento']
         modulos = []
         if self.perfil_tipo in ('admin', 'gestor_irp', 'diretor_centro',
                                 'aprovador_setor', 'respondente'):
