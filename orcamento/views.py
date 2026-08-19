@@ -2351,24 +2351,29 @@ def orc_usuario_create(request):
         if form.is_valid():
             with db_transaction.atomic():
                 user = form.save()
+                # Link de ativação (ainda dentro da transação, mas sem I/O externo)
                 uid = urlsafe_base64_encode(force_bytes(user.pk))
                 token = default_token_generator.make_token(user)
                 link = request.build_absolute_uri(f'/ativar-conta/{uid}/{token}/')
-                try:
-                    send_mail(
-                        subject='Ative sua conta – IRP CT/UFPB',
-                        message=(
-                            f'Olá, {user.username},\n\n'
-                            'Sua conta foi criada. Acesse o link abaixo para definir sua senha '
-                            f'(válido por 24h):\n\n{link}\n\nAtenciosamente,\nSistema CT/UFPB'
-                        ),
-                        from_email=None,
-                        recipient_list=[user.email],
-                        fail_silently=False,
-                    )
-                    messages.success(request, f'Usuário "{user.username}" criado. E-mail de ativação enviado.')
-                except Exception as e:
-                    messages.warning(request, f'Usuário "{user.username}" criado, mas erro ao enviar e-mail: {e}')
+
+            # Enviar e-mail FORA da transação para não segurar locks no banco
+            # durante a chamada SMTP (evita "Lock wait timeout exceeded" no MySQL).
+            try:
+                send_mail(
+                    subject='Ative sua conta – IRP CT/UFPB',
+                    message=(
+                        f'Olá, {user.username},\n\n'
+                        'Sua conta foi criada. Acesse o link abaixo para definir sua senha '
+                        f'(válido por 24h):\n\n{link}\n\nAtenciosamente,\nSistema CT/UFPB'
+                    ),
+                    from_email=None,
+                    recipient_list=[user.email],
+                    fail_silently=False,
+                )
+                messages.success(request, f'Usuário "{user.username}" criado. E-mail de ativação enviado.')
+            except Exception as e:
+                messages.warning(request, f'Usuário "{user.username}" criado, mas erro ao enviar e-mail: {e}')
+
             return redirect('orc_usuario_list')
     else:
         form = UsuarioForm()

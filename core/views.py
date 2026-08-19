@@ -2178,35 +2178,36 @@ def gestao_usuario_create(request):
         if form.is_valid():
             with transaction.atomic():
                 user = form.save()
-                
-                # Gerar link de ativação
+
+                # Gerar link de ativação (ainda dentro da transação, mas sem I/O externo)
                 uid = urlsafe_base64_encode(force_bytes(user.pk))
                 token = default_token_generator.make_token(user)
                 link = request.build_absolute_uri(f'/ativar-conta/{uid}/{token}/')
-                
-                # Enviar e-mail
-                assunto = 'Ative sua conta – IRP CT/UFPB'
-                mensagem = (
-                    f'Olá, {user.username},\n\n'
-                    'Sua conta no Sistema IRP CT/UFPB foi criada com sucesso.\n'
-                    'Para começar a utilizar o sistema, você precisa ativar sua conta e definir sua senha '
-                    'clicando no link abaixo (válido por 24 horas):\n\n'
-                    f'{link}\n\n'
-                    'Após definir sua senha, você poderá acessar o sistema com seu usuário e a senha cadastrada.\n\n'
-                    'Atenciosamente,\nSistema IRP CT/UFPB'
+
+            # Enviar e-mail FORA da transação para não segurar locks no banco
+            # durante a chamada SMTP (evita "Lock wait timeout exceeded" no MySQL).
+            assunto = 'Ative sua conta – IRP CT/UFPB'
+            mensagem = (
+                f'Olá, {user.username},\n\n'
+                'Sua conta no Sistema IRP CT/UFPB foi criada com sucesso.\n'
+                'Para começar a utilizar o sistema, você precisa ativar sua conta e definir sua senha '
+                'clicando no link abaixo (válido por 24 horas):\n\n'
+                f'{link}\n\n'
+                'Após definir sua senha, você poderá acessar o sistema com seu usuário e a senha cadastrada.\n\n'
+                'Atenciosamente,\nSistema IRP CT/UFPB'
+            )
+            try:
+                send_mail(
+                    subject=assunto,
+                    message=mensagem,
+                    from_email=None,
+                    recipient_list=[user.email],
+                    fail_silently=False,
                 )
-                try:
-                    send_mail(
-                        subject=assunto,
-                        message=mensagem,
-                        from_email=None,
-                        recipient_list=[user.email],
-                        fail_silently=False,
-                    )
-                    messages.success(request, f'Usuário "{user.username}" criado. Um e-mail de ativação foi enviado para {user.email}.')
-                except Exception as e:
-                    messages.warning(request, f'Usuário "{user.username}" criado, mas houve um erro ao enviar o e-mail de ativação: {e}')
-                
+                messages.success(request, f'Usuário "{user.username}" criado. Um e-mail de ativação foi enviado para {user.email}.')
+            except Exception as e:
+                messages.warning(request, f'Usuário "{user.username}" criado, mas houve um erro ao enviar o e-mail de ativação: {e}')
+
             return redirect('gestao_usuario_list')
     else:
         form = UsuarioForm()
