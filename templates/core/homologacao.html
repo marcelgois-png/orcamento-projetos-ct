@@ -221,9 +221,12 @@
               <th class="text-center sortable sticky-col col-std" data-col="3">Valor Ref.</th>
               {% for resp in respostas %}
               <th class="text-center resp-col col-std" data-setor="{{ resp.setor.pk }}">
-                <span title="{% if resp.usuario.perfil %}{{ resp.usuario.perfil.nome_completo }}{% else %}{{ resp.usuario.username }}{% endif %}">
+                <span title="{% if resp.usuario.perfil %}{{ resp.usuario.perfil.nome_completo }}{% else %}{{ resp.usuario.username }}{% endif %}{% if resp.setor %} — {{ resp.setor.nome }}{% endif %}">
                   {% if resp.usuario.perfil %}{{ resp.usuario.perfil.nome_completo|nome_curto|upper }}{% else %}{{ resp.usuario.username|upper }}{% endif %}
                 </span>
+                {% if resp.usuario_id in usuarios_repetidos and resp.setor %}
+                <div class="text-muted fw-normal text-truncate" style="font-size:.6rem;text-transform:none">{{ resp.setor.sigla|default:resp.setor.nome }}</div>
+                {% endif %}
               </th>
               {% endfor %}
               <th class="text-center fw-bold col-std col-sep-ajuste">Total</th>

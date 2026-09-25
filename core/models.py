@@ -38,6 +38,9 @@ PERFIL_POR_TIPO_SETOR = {
     'secretaria':     ['admin', 'gestor_irp', 'respondente'],
 }
 
+# Tipos de setor que não preenchem intenções diretamente (apenas homologam)
+TIPOS_SETOR_SEM_RESPOSTA = ('departamento', 'direcao', 'centro')
+
 
 class Setor(models.Model):
     codigo = models.CharField('Código SIPAC', max_length=30, unique=True)
@@ -117,6 +120,12 @@ class PerfilUsuario(models.Model):
         related_name='membros',
         verbose_name='Setor'
     )
+    setores_adicionais = models.ManyToManyField(
+        Setor, blank=True,
+        related_name='membros_adicionais',
+        verbose_name='Setores adicionais',
+        help_text='Outros setores pelos quais o usuário também responde IRPs (definidos pela gestão).'
+    )
     perfil_tipo = models.CharField(
         'Perfil', max_length=20,
         choices=PERFIL_TIPO_CHOICES,
@@ -168,6 +177,17 @@ class PerfilUsuario(models.Model):
     @property
     def perfil_badge_css(self):
         return PERFIL_BADGE_CSS.get(self.perfil_tipo, '')
+
+    def setores_resposta(self):
+        """Setores pelos quais o usuário responde IRPs: o principal e os adicionais,
+        exceto os tipos que não preenchem intenções. O principal vem primeiro."""
+        setores = [self.setor] if self.setor else []
+        if self.pk:
+            setores += list(
+                self.setores_adicionais.filter(ativo=True)
+                .exclude(pk=self.setor_id).order_by('nome')
+            )
+        return [s for s in setores if s.tipo not in TIPOS_SETOR_SEM_RESPOSTA]
 
     def get_setor_raiz(self):
         """Retorna o setor de referência para homologação.
@@ -336,7 +356,8 @@ class Resposta(models.Model):
     class Meta:
         verbose_name = 'Resposta'
         verbose_name_plural = 'Respostas'
-        unique_together = ['irp', 'usuario']
+        # Uma resposta por setor: quem atua em mais de um setor responde por cada um
+        unique_together = ['irp', 'usuario', 'setor']
 
     def __str__(self):
         return f'{self.usuario} → {self.irp}'

@@ -17,6 +17,7 @@ class PerfilUsuarioAdmin(admin.ModelAdmin):
     list_filter = ['perfil_tipo', 'setor']
     search_fields = ['nome_completo', 'matricula', 'usuario__username']
     raw_id_fields = ['usuario']
+    filter_horizontal = ['setores_adicionais']
 
 
 class ItemInline(admin.TabularInline):

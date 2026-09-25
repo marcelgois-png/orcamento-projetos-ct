@@ -219,6 +219,25 @@ def selecionar_modulo(request):
 # Views do usuário respondente
 # ---------------------------------------------------------------------------
 
+def _situacao_respostas(user, perfil, irps):
+    """Situação das respostas enviadas pelo usuário, uma linha por setor em que responde:
+    {irp_pk: {'linhas': [{'setor', 'resp'}], 'respondidas': n, 'setor_pendente': Setor|None}}."""
+    setores = perfil.setores_resposta()
+    enviadas = {}
+    for r in Resposta.objects.filter(usuario=user, irp__in=irps, respondida_em__isnull=False):
+        # Resposta antiga sem setor conta para o setor principal
+        enviadas[(r.irp_id, r.setor_id or perfil.setor_id)] = r
+    situacao = {}
+    for irp in irps:
+        linhas = [{'setor': s, 'resp': enviadas.get((irp.pk, s.pk))} for s in setores]
+        situacao[irp.pk] = {
+            'linhas': linhas,
+            'respondidas': sum(1 for linha in linhas if linha['resp']),
+            'setor_pendente': next((linha['setor'] for linha in linhas if not linha['resp']), None),
+        }
+    return situacao
+
+
 @login_required
 def home(request):
     try:
@@ -233,8 +252,9 @@ def home(request):
         IRP.objects
         .filter(liberada=True, prazo__gt=agora)
         .annotate(
-            itens_ativos=Count('itens', filter=Qf(itens__ativo=True)),
-            respostas_enviadas=Count('respostas', filter=Qf(respostas__respondida_em__isnull=False)),
+            itens_ativos=Count('itens', filter=Qf(itens__ativo=True), distinct=True),
+            # Pessoas (não respostas): quem atua em mais de um setor envia uma por setor
+            respostas_enviadas=Count('respostas__usuario', filter=Qf(respostas__respondida_em__isnull=False), distinct=True),
         )
         .order_by('prazo')
     )
@@ -244,7 +264,6 @@ def home(request):
     respostas_enviadas = Resposta.objects.filter(
         usuario=request.user, respondida_em__isnull=False
     )
-    respostas_dict = {r.irp_id: r for r in respostas_enviadas}
 
     irps_encerradas_recentes = list(irps_encerradas[:5])
 
@@ -264,7 +283,7 @@ def home(request):
         'qt_usuarios': qt_usuarios,
         'irps_abertas': irps_abertas,
         'irps_encerradas_recentes': irps_encerradas_recentes,
-        'respostas_dict': respostas_dict,
+        'situacao_respostas': _situacao_respostas(request.user, perfil, irps_abertas),
         'agora': agora,
     })
 
@@ -283,8 +302,9 @@ def irp_list(request):
         IRP.objects
         .filter(liberada=True, prazo__gt=agora)
         .annotate(
+            # Pessoas (não respostas): quem atua em mais de um setor envia uma por setor
             respostas_enviadas=Count(
-                'respostas',
+                'respostas__usuario',
                 filter=Qf(respostas__respondida_em__isnull=False),
                 distinct=True,
             ),
@@ -296,17 +316,10 @@ def irp_list(request):
         )
         .order_by('prazo')
     )
-    # Apenas respostas efetivamente enviadas
-    respostas_dict = {
-        r.irp_id: r
-        for r in Resposta.objects.filter(
-            usuario=request.user, respondida_em__isnull=False
-        )
-    }
 
     context = {
         'irps_abertas': irps_abertas,
-        'respostas_dict': respostas_dict,
+        'situacao_respostas': _situacao_respostas(request.user, perfil, irps_abertas),
     }
     return render(request, 'core/irp_list.html', context)
 
@@ -328,8 +341,9 @@ def irp_responder(request, pk):
         messages.error(request, 'Você precisa estar vinculado a um setor no seu perfil para responder a uma IRP.')
         return redirect('perfil_editar')
 
-    tipo_setor = perfil.setor.tipo if perfil.setor else ''
-    if tipo_setor in ('departamento', 'direcao', 'centro'):
+    # Setores pelos quais o usuário responde: principal + adicionais (definidos pela gestão)
+    setores = perfil.setores_resposta()
+    if not setores:
         messages.error(request, 'Departamentos e Direções de Centro não preenchem intenções diretamente. Solicite a um setor administrativamente subordinado.')
         return redirect('irp_list')
 
@@ -338,15 +352,26 @@ def irp_responder(request, pk):
         messages.error(request, 'Esta IRP ainda não possui itens cadastrados e não pode ser respondida.')
         return redirect('irp_list')
 
-    # Cria ou recupera a resposta do usuário para esta IRP
-    resposta, criada = Resposta.objects.get_or_create(
-        irp=irp, usuario=request.user,
-        defaults={'setor': perfil.setor}
-    )
-    # Sincroniza o setor caso a resposta existisse antes do perfil ser configurado
-    if not criada and resposta.setor is None and perfil.setor:
-        resposta.setor = perfil.setor
-        resposta.save(update_fields=['setor'])
+    # Setor escolhido (?setor=<pk>); padrão: o principal
+    setor = next((s for s in setores if str(s.pk) == request.GET.get('setor')), setores[0])
+
+    # Resposta antiga sem setor (anterior à configuração do perfil) passa a ser do setor principal
+    if setor == perfil.setor:
+        Resposta.objects.filter(irp=irp, usuario=request.user, setor__isnull=True).update(setor=setor)
+
+    # Cria ou recupera a resposta do usuário para esta IRP neste setor
+    resposta, _ = Resposta.objects.get_or_create(irp=irp, usuario=request.user, setor=setor)
+
+    # Seletor de setor (apenas para quem responde por mais de um)
+    opcoes_setor = []
+    if len(setores) > 1:
+        enviadas = set(
+            Resposta.objects.filter(irp=irp, usuario=request.user, respondida_em__isnull=False)
+            .values_list('setor_id', flat=True)
+        )
+        opcoes_setor = [
+            {'setor': s, 'atual': s == setor, 'enviada': s.pk in enviadas} for s in setores
+        ]
 
     itens = list(irp.itens.all())
     respostas_items = {
@@ -401,7 +426,10 @@ def irp_responder(request, pk):
                         update_fields.append('respondida_em')
                     resposta.save(update_fields=update_fields)
 
-                messages.success(request, 'Intenções salvas com sucesso!')
+                if opcoes_setor:
+                    messages.success(request, f'Intenções de {setor.nome} salvas com sucesso!')
+                else:
+                    messages.success(request, 'Intenções salvas com sucesso!')
                 return redirect('irp_list')
             except Exception as e:
                 messages.error(request, f'Erro ao salvar: {e}')
@@ -426,6 +454,7 @@ def irp_responder(request, pk):
         'ja_respondeu': ja_respondeu,
         'lot_pai': lot_pai,
         'lot_sub': lot_sub,
+        'opcoes_setor': opcoes_setor,
         # Rubricas (consumo/permanente) presentes nos itens — vazio se nenhum item foi classificado
         'rubricas_presentes': sorted({rubrica_curta(i.rubrica) for i in itens if i.rubrica}),
     }
@@ -993,6 +1022,12 @@ def homologar_setor(request, irp_pk):
                  .select_related('usuario__perfil', 'setor')
                  .order_by('setor__nome'))
 
+    # Quem respondeu por mais de um setor do grupo: o cabeçalho da coluna mostra o setor
+    from collections import Counter
+    usuarios_repetidos = {
+        u for u, n in Counter(respostas.values_list('usuario_id', flat=True)).items() if n > 1
+    }
+
     # Setores que efetivamente possuem respostas (para o filtro de subsetores)
     _setores_com_resp_pks = set(respostas.values_list('setor_id', flat=True))
     setores_com_respostas = [s for s in todos_setores if s.pk in _setores_com_resp_pks]
@@ -1069,6 +1104,7 @@ def homologar_setor(request, irp_pk):
         'todos_setores': todos_setores,
         'setores_com_respostas': setores_com_respostas,
         'respostas': respostas,
+        'usuarios_repetidos': usuarios_repetidos,
         'itens': itens,
         'ri_map': ri_map,
         'homologacao': homologacao,
@@ -2145,7 +2181,9 @@ def ativar_conta(request, uidb64, token):
 
 @gestor_required
 def gestao_usuario_list(request):
-    usuarios = User.objects.select_related('perfil').order_by('perfil__nome_completo', 'username')
+    usuarios = (User.objects.select_related('perfil__setor')
+                .prefetch_related('perfil__setores_adicionais')
+                .order_by('perfil__nome_completo', 'username'))
     return render(request, 'core/gestao/usuario_list.html', {'usuarios': usuarios})
 
 
@@ -2153,7 +2191,7 @@ def gestao_usuario_list(request):
 def gestao_usuario_create(request):
     todos_setores = Setor.objects.filter(ativo=True).order_by('nome')
     if request.method == 'POST':
-        form = UsuarioForm(request.POST, request.FILES)
+        form = UsuarioForm(request.POST, request.FILES, com_setores_adicionais=True)
         if form.is_valid():
             with transaction.atomic():
                 user = form.save()
@@ -2189,7 +2227,7 @@ def gestao_usuario_create(request):
 
             return redirect('gestao_usuario_list')
     else:
-        form = UsuarioForm()
+        form = UsuarioForm(com_setores_adicionais=True)
     return render(request, 'core/gestao/usuario_form.html', {
         'form': form, 'titulo_pagina': 'Novo Usuário',
         'todos_setores': todos_setores,
@@ -2209,13 +2247,14 @@ def gestao_usuario_edit(request, pk):
     todos_setores = Setor.objects.filter(ativo=True).order_by('nome')
 
     if request.method == 'POST':
-        form = UsuarioForm(request.POST, request.FILES, instance=usuario, perfil=perfil)
+        form = UsuarioForm(request.POST, request.FILES, instance=usuario, perfil=perfil,
+                           com_setores_adicionais=True)
         if form.is_valid():
             form.save()
             messages.success(request, 'Usuário atualizado.')
             return redirect('gestao_usuario_list')
     else:
-        form = UsuarioForm(instance=usuario, perfil=perfil)
+        form = UsuarioForm(instance=usuario, perfil=perfil, com_setores_adicionais=True)
 
     return render(request, 'core/gestao/usuario_form.html', {
         'form': form, 'usuario': usuario, 'titulo_pagina': 'Editar Usuário',

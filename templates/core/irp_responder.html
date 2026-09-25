@@ -85,7 +85,7 @@
 </div>
 {% endif %}
 
-<form method="post" id="form-irp" novalidate>
+<form method="post" id="form-irp" action="?setor={{ resposta.setor_id }}" novalidate>
 {% csrf_token %}
 
 <!-- Card do respondente (read-only) -->
@@ -111,6 +111,23 @@
         {% endif %}
       </div>
     </div>
+
+    {% if opcoes_setor %}
+    <div class="mb-2">
+      <div class="setor-label mb-1"><i class="bi bi-diagram-3 me-1"></i>Respondendo por</div>
+      <div class="d-flex flex-wrap gap-2">
+        {% for op in opcoes_setor %}
+        <a href="?setor={{ op.setor.pk }}"
+           class="btn btn-sm link-setor {% if op.atual %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+           {% if op.atual %}aria-current="true"{% endif %}>
+          {{ op.setor.nome }}
+          {% if op.enviada %}<i class="bi bi-check-circle-fill ms-1" title="Resposta enviada"></i>{% endif %}
+        </a>
+        {% endfor %}
+      </div>
+      <div class="form-text">Cada setor tem sua própria resposta, homologada pela chefia do respectivo setor.</div>
+    </div>
+    {% endif %}
 
     <div class="setor-info-card" style="max-width:480px">
       <div class="setor-label"><i class="bi bi-building me-1"></i>Setor</div>
@@ -547,5 +564,16 @@ function limparFiltros() {
 
 buscaInput?.addEventListener('input', aplicarFiltros);
 filtroRubrica?.addEventListener('change', aplicarFiltros);
+
+// Aviso ao trocar de setor com alterações não enviadas
+let formAlterado = false;
+document.getElementById('form-irp').addEventListener('input', e => {
+  if (e.target.matches('.qtd-input, .input-just, textarea')) formAlterado = true;
+});
+document.querySelectorAll('.link-setor').forEach(a => a.addEventListener('click', e => {
+  if (formAlterado && !confirm('Há alterações não enviadas neste setor. Trocar de setor e descartá-las?')) {
+    e.preventDefault();
+  }
+}));
 </script>
 {% endblock %}

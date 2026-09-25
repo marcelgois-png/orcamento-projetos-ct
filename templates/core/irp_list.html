@@ -26,7 +26,7 @@
 {% if irps_abertas %}
 <div class="row g-3 mb-4">
   {% for irp in irps_abertas %}
-  {% with resp=respostas_dict|get_item:irp.pk %}
+  {% with sit=situacao_respostas|get_item:irp.pk %}
   <div class="col-6">
     <div class="card border-0 shadow-sm">
       <div class="card-body py-2 px-3">
@@ -40,14 +40,14 @@
             <span class="fase-badge" style="background:#e9ecef;color:#6c757d;flex-shrink:0">
               <i class="bi bi-hourglass"></i>Aguardando itens
             </span>
-          {% elif resp %}
+          {% elif sit.respondidas %}
             <span class="fase-badge" style="background:#d1e7dd;color:#0a3622;flex-shrink:0">
-              <i class="bi bi-check2-circle-fill"></i>Respondida
+              <i class="bi bi-check2-circle-fill"></i>Respondida{% if sit.linhas|length > 1 %} ({{ sit.respondidas }} de {{ sit.linhas|length }}){% endif %}
             </span>
           {% endif %}
           {% if irp.itens_ativos %}
-          <a href="{% url 'irp_responder' irp.pk %}" class="btn btn-primary btn-sm flex-shrink-0" style="font-size:.78rem;">
-            {% if resp %}<i class="bi bi-pencil"></i> Editar
+          <a href="{% url 'irp_responder' irp.pk %}{% if sit.respondidas and sit.setor_pendente %}?setor={{ sit.setor_pendente.pk }}{% endif %}" class="btn btn-primary btn-sm flex-shrink-0" style="font-size:.78rem;">
+            {% if sit.respondidas and not sit.setor_pendente %}<i class="bi bi-pencil"></i> Editar
             {% else %}<i class="bi bi-play-fill"></i> Responder{% endif %}
           </a>
           {% else %}
@@ -73,11 +73,20 @@
 
         <!-- Linha 4: situação da resposta -->
         <div class="mt-1" style="font-size:.78rem;">
-          {% if resp %}
-          <span class="text-success"><i class="bi bi-check-circle me-1"></i>Você intencionou {{ resp.total_itens_intencionados }} ite{{ resp.total_itens_intencionados|pluralize:"m,ns" }} ({{ resp.total_valor|brl }}) em {{ resp.respondida_em|date:"d/m/Y" }}{% if resp.foi_editada %} (editada){% endif %}</span>
-          {% else %}
+          {% for linha in sit.linhas %}
+          <div>
+            {% if sit.linhas|length > 1 %}<span class="fw-semibold">{{ linha.setor.nome }}:</span>{% endif %}
+            {% with resp=linha.resp %}
+            {% if resp %}
+            <span class="text-success"><i class="bi bi-check-circle me-1"></i>Você intencionou {{ resp.total_itens_intencionados }} ite{{ resp.total_itens_intencionados|pluralize:"m,ns" }} ({{ resp.total_valor|brl }}) em {{ resp.respondida_em|date:"d/m/Y" }}{% if resp.foi_editada %} (editada){% endif %}</span>
+            {% else %}
+            <span class="text-muted"><i class="bi bi-dash-circle me-1"></i>Você ainda não intencionou itens nesta IRP</span>
+            {% endif %}
+            {% endwith %}
+          </div>
+          {% empty %}
           <span class="text-muted"><i class="bi bi-dash-circle me-1"></i>Você ainda não intencionou itens nesta IRP</span>
-          {% endif %}
+          {% endfor %}
         </div>
 
       </div>

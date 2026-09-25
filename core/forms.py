@@ -5,7 +5,8 @@ from django.contrib.auth.models import User
 from django.utils import timezone as tz
 
 from .models import (Setor, PerfilUsuario, IRP, Item,
-                     TIPO_SETOR_CHOICES, PERFIL_POR_TIPO_SETOR, PERFIL_TIPO_CHOICES)
+                     TIPO_SETOR_CHOICES, TIPOS_SETOR_SEM_RESPOSTA,
+                     PERFIL_POR_TIPO_SETOR, PERFIL_TIPO_CHOICES)
 from .rubricas import rubrica_choices
 
 
@@ -245,6 +246,9 @@ class UsuarioForm(forms.ModelForm):
         queryset=None, label='Setor do Servidor',
         widget=forms.Select(attrs={'class': 'form-select'})
     )
+    setores_adicionais = forms.ModelMultipleChoiceField(
+        queryset=None, required=False, label='Setores adicionais',
+    )
     perfil_tipo = forms.ChoiceField(
         choices=[('', '— Selecione o perfil —')] + [
             ('admin',           'Administrador do Sistema'),
@@ -288,8 +292,21 @@ class UsuarioForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         self._perfil = kwargs.pop('perfil', None)
+        # Só as telas de gestão do módulo IRP exibem os setores adicionais; nas
+        # demais o campo é removido para que salvar não apague os já definidos.
+        com_setores_adicionais = kwargs.pop('com_setores_adicionais', False)
         super().__init__(*args, **kwargs)
         self.fields['setor'].queryset = _setor_qs()
+        if com_setores_adicionais:
+            self.fields['setores_adicionais'].queryset = (
+                _setor_qs().exclude(tipo__in=TIPOS_SETOR_SEM_RESPOSTA)
+            )
+            if self._perfil:
+                self.fields['setores_adicionais'].initial = list(
+                    self._perfil.setores_adicionais.values_list('pk', flat=True)
+                )
+        else:
+            del self.fields['setores_adicionais']
         # email is always required
         self.fields['email'].required = True
         # perfil_tipo is always required
@@ -377,7 +394,17 @@ class UsuarioForm(forms.ModelForm):
             if foto:
                 perfil.foto = foto
             perfil.save()
+            if 'setores_adicionais' in self.fields:
+                perfil.setores_adicionais.set(
+                    [s for s in self.cleaned_data['setores_adicionais'] if s != perfil.setor]
+                )
         return user
+
+    def valores_setores_adicionais(self):
+        """PKs (str) dos setores adicionais a exibir, inclusive após erro de validação."""
+        if 'setores_adicionais' not in self.fields:
+            return []
+        return [str(v) for v in (self['setores_adicionais'].value() or [])]
 
 
 class ItemImportForm(forms.Form):

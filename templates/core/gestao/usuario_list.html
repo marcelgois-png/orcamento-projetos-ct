@@ -155,6 +155,14 @@
               {% if setor.sigla %}
                 <span class="text-muted" style="font-size:.78rem">({{ setor.sigla }})</span>
               {% endif %}
+              {% with adicionais=perfil.setores_adicionais.all %}
+              {% if adicionais %}
+                <span class="badge rounded-pill text-bg-light border" style="font-size:.7rem"
+                      title="Setores adicionais: {% for s in adicionais %}{{ s.nome }}{% if not forloop.last %}; {% endif %}{% endfor %}">
+                  +{{ adicionais|length }}
+                </span>
+              {% endif %}
+              {% endwith %}
             {% else %}<span class="opacity-25">—</span>{% endif %}
           </td>
 
