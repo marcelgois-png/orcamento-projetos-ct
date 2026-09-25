@@ -40,6 +40,11 @@
 
   .just-obrig { border-color: #dc3545 !important; }
   .just-aviso { font-size: .72rem; color: #dc3545; display: none; margin-top: 2px; }
+
+  /* Status da linha: verde = quantidade + justificativa; laranja = só uma das duas */
+  .status-ok      { color: #198754; }
+  .status-parcial { color: #fd7e14; }
+  .legenda-status { font-size: .72rem; }
 </style>
 {% endblock %}
 
@@ -130,6 +135,10 @@
            placeholder="Filtrar itens por descrição...">
   </div>
   <span class="text-muted small" id="contador-filtro"></span>
+  <span class="legenda-status text-muted ms-auto">
+    <i class="bi bi-check-circle-fill status-ok"></i> quantidade e justificativa
+    <i class="bi bi-exclamation-circle-fill status-parcial ms-2"></i> falta um dos dois
+  </span>
 </div>
 {% endif %}
 
@@ -187,8 +196,12 @@
             </div>
           </td>
           <td class="text-center" id="status-{{ entry.item.pk }}">
-            {% if entry.quantidade %}
-              <span class="text-success"><i class="bi bi-check-circle-fill"></i></span>
+            {% if entry.quantidade and entry.observacao %}
+              <i class="bi bi-check-circle-fill status-ok" title="Quantidade e justificativa preenchidas"></i>
+            {% elif entry.quantidade %}
+              <i class="bi bi-exclamation-circle-fill status-parcial" title="Falta a justificativa"></i>
+            {% elif entry.observacao %}
+              <i class="bi bi-exclamation-circle-fill status-parcial" title="Justificativa sem quantidade"></i>
             {% endif %}
           </td>
         </tr>
@@ -233,6 +246,12 @@
         <span class="text-muted small">Valor total:</span>
         <strong id="total-valor" class="ms-1 text-primary">R$ 0,00</strong>
       </div>
+      {% if pode_editar %}
+      <a href="#" id="link-pendentes" class="small fw-semibold text-danger text-decoration-none d-none"
+         title="Ir para o primeiro item sem justificativa">
+        <i class="bi bi-exclamation-circle-fill me-1"></i><span id="total-pendentes">0</span>
+      </a>
+      {% endif %}
     </div>
     {% if pode_editar %}
     <div class="d-flex gap-2">
@@ -320,6 +339,50 @@ function calcularTotais() {
   return { totalItens, totalValor: totalCentavos / 100 };
 }
 
+// Status da linha: verde só com quantidade E justificativa; laranja com apenas uma
+const STATUS_HTML = {
+  ok:         '<i class="bi bi-check-circle-fill status-ok" title="Quantidade e justificativa preenchidas"></i>',
+  falta_just: '<i class="bi bi-exclamation-circle-fill status-parcial" title="Falta a justificativa"></i>',
+  falta_qtd:  '<i class="bi bi-exclamation-circle-fill status-parcial" title="Justificativa sem quantidade"></i>',
+  vazio:      '',
+};
+
+function statusLinha(id) {
+  const qtd = parseFloat(document.getElementById('qtd-' + id)?.value) || 0;
+  const obs = (document.getElementById('obs-' + id)?.value || '').trim();
+  if (qtd > 0) return obs ? 'ok' : 'falta_just';
+  return obs ? 'falta_qtd' : 'vazio';
+}
+
+function atualizarStatus(id) {
+  const statusEl = document.getElementById('status-' + id);
+  if (statusEl) statusEl.innerHTML = STATUS_HTML[statusLinha(id)];
+}
+
+function idsSemJustificativa() {
+  return Array.from(document.querySelectorAll('.qtd-input'))
+    .map(input => input.dataset.item)
+    .filter(id => statusLinha(id) === 'falta_just');
+}
+
+function atualizarPendentes() {
+  const link = document.getElementById('link-pendentes');
+  if (!link) return;
+  const n = idsSemJustificativa().length;
+  link.classList.toggle('d-none', n === 0);
+  document.getElementById('total-pendentes').textContent =
+    n === 1 ? '1 item sem justificativa' : `${n} itens sem justificativa`;
+}
+
+// Rola até a justificativa do item, limpando os filtros se ela estiver oculta
+function irParaJustificativa(id) {
+  const obsEl = document.getElementById('obs-' + id);
+  if (!obsEl) return;
+  if (obsEl.closest('tr').style.display === 'none') limparFiltros();
+  obsEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  obsEl.focus({ preventScroll: true });
+}
+
 function atualizarTotais() {
   document.querySelectorAll('.qtd-input').forEach(input => {
     const qtd   = parseFloat(input.value) || 0;
@@ -329,46 +392,36 @@ function atualizarTotais() {
     const obsEl   = document.getElementById('obs-' + id);
     const aviso   = document.getElementById('aviso-' + id);
 
-    const statusEl = document.getElementById('status-' + id);
     if (qtd > 0) {
       const val = Math.round(qtd * preco * 100) / 100;
       if (valorEl) valorEl.innerHTML = `<strong>${formatBRL(val)}</strong>`;
-      if (obsEl) obsEl.setAttribute('placeholder', 'Justificar caso intencione esse item');
-      if (statusEl) statusEl.innerHTML = '<span class="text-success"><i class="bi bi-check-circle-fill"></i></span>';
     } else {
       if (valorEl) valorEl.innerHTML = '—';
-      if (statusEl) statusEl.innerHTML = '';
       if (obsEl) {
-        obsEl.setAttribute('placeholder', 'Justificar caso intencione esse item');
         obsEl.classList.remove('just-obrig');
         if (aviso) aviso.style.display = 'none';
       }
     }
+    atualizarStatus(id);
   });
+  atualizarPendentes();
   const { totalItens, totalValor } = calcularTotais();
   document.getElementById('total-itens').textContent = totalItens;
   document.getElementById('total-valor').textContent = formatBRL(totalValor);
 }
 
 function validarFormulario() {
-  let erros = 0;
+  const pendentes = new Set(idsSemJustificativa());
   document.querySelectorAll('.qtd-input').forEach(input => {
-    const qtd   = parseFloat(input.value) || 0;
     const id    = input.dataset.item;
     const obsEl = document.getElementById('obs-' + id);
     const aviso = document.getElementById('aviso-' + id);
-    if (qtd > 0 && obsEl && !obsEl.value.trim()) {
-      obsEl.classList.add('just-obrig');
-      if (aviso) aviso.style.display = 'block';
-      erros++;
-    } else if (obsEl) {
-      obsEl.classList.remove('just-obrig');
-      if (aviso) aviso.style.display = 'none';
-    }
+    const erro  = pendentes.has(id);
+    if (obsEl) obsEl.classList.toggle('just-obrig', erro);
+    if (aviso) aviso.style.display = erro ? 'block' : 'none';
   });
-  if (erros > 0) {
-    const primeiroErro = document.querySelector('.just-obrig');
-    if (primeiroErro) primeiroErro.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (pendentes.size > 0) {
+    irParaJustificativa(pendentes.values().next().value);
     return false;
   }
   return true;
@@ -396,14 +449,22 @@ document.getElementById('btn-confirmar-envio')?.addEventListener('click', functi
   form.submit();
 });
 
-// Remove marcação de erro ao digitar na justificativa
+// Ao digitar a justificativa: remove a marcação de erro e atualiza o status
 document.querySelectorAll('.input-just').forEach(obs => {
   obs.addEventListener('input', function () {
     this.classList.remove('just-obrig');
     const id = this.id.replace('obs-', '');
     const aviso = document.getElementById('aviso-' + id);
     if (aviso) aviso.style.display = 'none';
+    atualizarStatus(id);
+    atualizarPendentes();
   });
+});
+
+document.getElementById('link-pendentes')?.addEventListener('click', function (e) {
+  e.preventDefault();
+  const [primeiro] = idsSemJustificativa();
+  if (primeiro) irParaJustificativa(primeiro);
 });
 
 document.addEventListener('DOMContentLoaded', atualizarTotais);
@@ -413,18 +474,24 @@ document.querySelectorAll('.qtd-input').forEach(input => {
 
 // Filtro por descrição
 const buscaInput = document.getElementById('busca-item');
-if (buscaInput) {
-  buscaInput.addEventListener('input', function () {
-    const termo = this.value.toLowerCase().trim();
-    let visiveis = 0;
-    document.querySelectorAll('.item-row').forEach(tr => {
-      const mostrar = !termo || tr.dataset.descricao.includes(termo);
-      tr.style.display = mostrar ? '' : 'none';
-      if (mostrar) visiveis++;
-    });
-    const contador = document.getElementById('contador-filtro');
-    if (contador) contador.textContent = termo ? `${visiveis} item(ns) encontrado(s)` : '';
+
+function aplicarFiltros() {
+  const termo = buscaInput ? buscaInput.value.toLowerCase().trim() : '';
+  let visiveis = 0;
+  document.querySelectorAll('.item-row').forEach(tr => {
+    const mostrar = !termo || tr.dataset.descricao.includes(termo);
+    tr.style.display = mostrar ? '' : 'none';
+    if (mostrar) visiveis++;
   });
+  const contador = document.getElementById('contador-filtro');
+  if (contador) contador.textContent = termo ? `${visiveis} item(ns) encontrado(s)` : '';
 }
+
+function limparFiltros() {
+  if (buscaInput) buscaInput.value = '';
+  aplicarFiltros();
+}
+
+buscaInput?.addEventListener('input', aplicarFiltros);
 </script>
 {% endblock %}

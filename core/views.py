@@ -354,48 +354,69 @@ def irp_responder(request, pk):
         for ri in RespostaItem.objects.filter(resposta=resposta).select_related('item')
     }
 
-    if request.method == 'POST' and pode_editar:
-        try:
-            with transaction.atomic():
-                for item in itens:
-                    qtd_str = request.POST.get(f'qtd_{item.pk}', '').strip().replace(',', '.')
-                    obs = request.POST.get(f'obs_{item.pk}', '').strip()
-                    try:
-                        quantidade = Decimal(qtd_str) if qtd_str else None
-                        if quantidade is not None and quantidade <= 0:
-                            quantidade = None
-                    except InvalidOperation:
-                        quantidade = None
-
-                    ri, _ = RespostaItem.objects.get_or_create(resposta=resposta, item=item)
-                    ri.quantidade = quantidade
-                    ri.observacao = obs
-                    ri.save()
-
-                resposta.observacao_geral = request.POST.get('observacao_geral', '').strip()
-                from django.utils import timezone as tz
-                update_fields = ['observacao_geral', 'atualizada_em']
-                if not resposta.respondida_em:
-                    resposta.respondida_em = tz.now()
-                    update_fields.append('respondida_em')
-                resposta.save(update_fields=update_fields)
-
-            messages.success(request, 'Intenções salvas com sucesso!')
-            return redirect('irp_list')
-        except Exception as e:
-            messages.error(request, f'Erro ao salvar: {e}')
-
-    # Monta lista de itens com dados de resposta
-    itens_dados = []
+    # Valores exibidos por item: {item_pk: (quantidade, observacao)}
+    valores = {}
     for item in itens:
         ri = respostas_items.get(item.pk)
-        itens_dados.append({
-            'item': item,
-            'quantidade': ri.quantidade if ri else None,
-            'observacao': ri.observacao if ri else '',
-        })
+        valores[item.pk] = (ri.quantidade, ri.observacao) if ri else (None, '')
+
+    if request.method == 'POST' and pode_editar:
+        enviados = {}
+        sem_justificativa = []
+        for item in itens:
+            qtd_str = request.POST.get(f'qtd_{item.pk}', '').strip().replace(',', '.')
+            obs = request.POST.get(f'obs_{item.pk}', '').strip()
+            try:
+                quantidade = Decimal(qtd_str) if qtd_str else None
+                if quantidade is not None and quantidade <= 0:
+                    quantidade = None
+            except InvalidOperation:
+                quantidade = None
+            enviados[item.pk] = (quantidade, obs)
+            if quantidade and not obs:
+                sem_justificativa.append(str(item.numero))
+
+        observacao_geral = request.POST.get('observacao_geral', '').strip()
+
+        if sem_justificativa:
+            messages.error(
+                request,
+                'Informe a justificativa dos itens com quantidade: '
+                f'{", ".join(sem_justificativa)}. Nada foi salvo.'
+            )
+        else:
+            try:
+                with transaction.atomic():
+                    for item in itens:
+                        quantidade, obs = enviados[item.pk]
+                        ri, _ = RespostaItem.objects.get_or_create(resposta=resposta, item=item)
+                        ri.quantidade = quantidade
+                        ri.observacao = obs
+                        ri.save()
+
+                    resposta.observacao_geral = observacao_geral
+                    update_fields = ['observacao_geral', 'atualizada_em']
+                    if not resposta.respondida_em:
+                        resposta.respondida_em = timezone.now()
+                        update_fields.append('respondida_em')
+                    resposta.save(update_fields=update_fields)
+
+                messages.success(request, 'Intenções salvas com sucesso!')
+                return redirect('irp_list')
+            except Exception as e:
+                messages.error(request, f'Erro ao salvar: {e}')
+
+        # Não salvou: reexibe o que o usuário enviou para não perder o preenchimento
+        valores = enviados
+        resposta.observacao_geral = observacao_geral
+
+    itens_dados = [
+        {'item': item, 'quantidade': valores[item.pk][0], 'observacao': valores[item.pk][1]}
+        for item in itens
+    ]
 
     ja_respondeu = resposta.itens_resposta.exists()
+    lot_pai, lot_sub = _setor_pai_sub(resposta.setor)
 
     context = {
         'irp': irp,
@@ -403,6 +424,8 @@ def irp_responder(request, pk):
         'itens_dados': itens_dados,
         'pode_editar': pode_editar,
         'ja_respondeu': ja_respondeu,
+        'lot_pai': lot_pai,
+        'lot_sub': lot_sub,
     }
     return render(request, 'core/irp_responder.html', context)
 
