@@ -19,8 +19,8 @@ from django.utils.crypto import get_random_string
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 
-from .forms import (IRPForm, ItemForm, ItemImportForm, PerfilForm,
-                    SetorForm, UsuarioForm)
+from .forms import (IRPForm, ItemForm, ItemImportForm, MeuPerfilForm,
+                    SetorForm, UsuarioForm, setores_autoatendimento_qs)
 from .models import (IRP, Item, PerfilUsuario, Resposta, RespostaItem, Setor,
                       HomologacaoSetor, HomologacaoSetorItem,
                       Pregao, PregaoItem, PERFIL_POR_TIPO_SETOR, TIPO_SETOR_CHOICES)
@@ -408,74 +408,6 @@ def irp_responder(request, pk):
 
 
 @login_required
-def salvar_item_htmx(request, irp_pk, item_pk):
-    """Endpoint HTMX: salva a quantidade de um único item."""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
-    irp = get_object_or_404(IRP, pk=irp_pk)
-    item = get_object_or_404(Item, pk=item_pk, irp=irp)
-
-    if not irp.esta_aberta:
-        return HttpResponse('<span class="text-danger small">IRP encerrada</span>')
-
-    if not perfil.setor:
-        return HttpResponse('<span class="text-danger small">Vínculo com setor exigido</span>')
-
-    tipo_setor = perfil.setor.tipo if perfil.setor else ''
-    if tipo_setor in ('departamento', 'direcao', 'centro'):
-        return HttpResponse('<span class="text-danger small" title="Departamentos não respondem">Bloqueado</span>')
-
-    resposta, _ = Resposta.objects.get_or_create(
-        irp=irp, usuario=request.user,
-        defaults={'setor': perfil.setor}
-    )
-
-    qtd_str = request.POST.get(f'qtd_{item_pk}', '').strip().replace(',', '.')
-    obs = request.POST.get(f'obs_{item_pk}', '').strip()
-
-    try:
-        quantidade = Decimal(qtd_str) if qtd_str else None
-        if quantidade is not None and quantidade <= 0:
-            quantidade = None
-    except InvalidOperation:
-        quantidade = None
-
-    ri, _ = RespostaItem.objects.get_or_create(resposta=resposta, item=item)
-    ri.quantidade = quantidade
-    ri.observacao = obs
-    ri.save()
-
-    # Calcula valor total do item
-    if quantidade:
-        valor = quantidade * item.preco_estimado
-        valor_fmt = _fmt_brl(valor)
-        return HttpResponse(
-            f'<span class="text-success" title="Salvo">'
-            f'<i class="bi bi-check-circle-fill"></i>'
-            f'</span>'
-            f'<span class="ms-1 text-muted small" id="valor-{item_pk}">{valor_fmt}</span>'
-        )
-    return HttpResponse(
-        f'<span class="text-secondary" title="Salvo (sem intenção)">'
-        f'<i class="bi bi-dash-circle"></i>'
-        f'</span>'
-        f'<span class="ms-1" id="valor-{item_pk}">—</span>'
-    )
-
-
-def _fmt_brl(value):
-    if value is None:
-        return 'R$ 0,00'
-    try:
-        v = float(value)
-        fmt = f'{v:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')
-        return f'R$ {fmt}'
-    except (ValueError, TypeError):
-        return 'R$ 0,00'
-
-
-@login_required
 def perfil_editar(request):
     usuario = request.user
     try:
@@ -483,22 +415,22 @@ def perfil_editar(request):
     except PerfilUsuario.DoesNotExist:
         perfil = None
 
-    todos_setores = Setor.objects.filter(ativo=True).order_by('nome')
-
     if request.method == 'POST':
-        form = UsuarioForm(request.POST, request.FILES, instance=usuario, perfil=perfil)
+        form = MeuPerfilForm(request.POST, request.FILES, instance=usuario, perfil=perfil)
         if form.is_valid():
             form.save()
             messages.success(request, 'Perfil atualizado com sucesso!')
             return redirect('irp_list')
     else:
-        form = UsuarioForm(instance=usuario, perfil=perfil)
+        form = MeuPerfilForm(instance=usuario, perfil=perfil)
 
+    todos_setores = setores_autoatendimento_qs()
+    tipos_disponiveis = set(todos_setores.values_list('tipo', flat=True))
     return render(request, 'core/gestao/usuario_form.html', {
         'form': form,
         'titulo_pagina': 'Meu Perfil',
         'todos_setores': todos_setores,
-        'tipo_setor_choices': TIPO_SETOR_CHOICES,
+        'tipo_setor_choices': [c for c in TIPO_SETOR_CHOICES if c[0] in tipos_disponiveis],
         'perfil': perfil,
         'perfil_por_tipo_json': json.dumps(PERFIL_POR_TIPO_SETOR),
         'modo_perfil': True,

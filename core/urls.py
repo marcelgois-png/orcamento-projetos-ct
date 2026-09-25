@@ -10,7 +10,6 @@ urlpatterns = [
     path('perfil/', views.perfil_editar, name='perfil_editar'),
     path('irps/', views.irp_list, name='irp_list'),
     path('irps/<int:pk>/responder/', views.irp_responder, name='irp_responder'),
-    path('irps/<int:irp_pk>/item/<int:item_pk>/salvar/', views.salvar_item_htmx, name='salvar_item_htmx'),
 
     # --- Dashboard público ---
     path('dashboard/', views.dashboard, name='dashboard'),

@@ -67,6 +67,11 @@
   <div class="col-md-9 col-lg-8">
     <form method="post" enctype="multipart/form-data">
       {% csrf_token %}
+      {% if modo_perfil and form.non_field_errors %}
+      <div class="alert alert-danger py-2 small">
+        {% for err in form.non_field_errors %}<div><i class="bi bi-exclamation-triangle me-1"></i>{{ err }}</div>{% endfor %}
+      </div>
+      {% endif %}
 
       <!-- Dados de acesso -->
       <div class="card border-0 shadow-sm mb-4">
@@ -79,12 +84,18 @@
           <div class="row g-3">
             <!-- Usuário — linha própria -->
             <div class="col-12">
+              {% if modo_perfil %}
+              <label class="form-label fw-semibold">Usuário</label>
+              <input type="text" class="form-control" value="{{ form.instance.username }}" disabled>
+              {% else %}
               <label class="form-label fw-semibold">{{ form.username.label }} <span class="text-danger">*</span></label>
               {{ form.username }}
               {% for err in form.username.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+              {% endif %}
             </div>
-            <!-- Senha | Confirmar senha (visíveis apenas na edição) -->
-            {% if form.instance.pk %}
+            <!-- Senha | Confirmar senha (visíveis apenas na edição pela gestão;
+                 no Meu Perfil a troca é pela tela "Alterar senha") -->
+            {% if form.instance.pk and not modo_perfil %}
             <div class="col-md-6">
               <label class="form-label fw-semibold">{{ form.senha.label }}</label>
               {{ form.senha }}
@@ -105,7 +116,7 @@
               {% for err in form.email.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
             </div>
             <div class="col-md-6">
-              <label class="form-label fw-semibold">{{ form.email2.label }} <span class="text-danger">*</span></label>
+              <label class="form-label fw-semibold">{{ form.email2.label }}{% if not form.instance.pk %} <span class="text-danger">*</span>{% endif %}</label>
               {{ form.email2 }}
               {% if not object %}<div class="form-text text-muted">Repita o e-mail para confirmar.</div>{% endif %}
               {% for err in form.email2.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
@@ -145,6 +156,12 @@
           </span>
         </div>
         <div class="card-body pt-3">
+          {% if modo_perfil and not form.pode_alterar_setor %}
+          <div class="fw-semibold">{{ perfil.setor.nome|default:"Não definido" }}</div>
+          <div class="form-text text-muted">
+            <i class="bi bi-lock me-1"></i>O setor define a abrangência do seu perfil de acesso e só pode ser alterado pela gestão.
+          </div>
+          {% else %}
           <div class="row g-2 align-items-end">
             <div class="col-md-4">
               <label class="form-label fw-semibold">Filtrar por tipo</label>
@@ -177,6 +194,7 @@
           <div id="setor-tipo-info" class="mt-2" style="display:none">
             <span class="badge bg-secondary" id="setor-tipo-badge"></span>
           </div>
+          {% endif %}
         </div>
       </div>
 

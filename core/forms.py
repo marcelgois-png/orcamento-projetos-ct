@@ -126,37 +126,105 @@ class SetorForm(forms.ModelForm):
         self.fields['pai'].required = False
 
 
-class PerfilForm(forms.ModelForm):
-    email = forms.EmailField(
-        required=False,
-        label='E-mail',
-        widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'seu@email.com'})
+def _validar_foto(foto):
+    if foto and hasattr(foto, 'size'):
+        if foto.size > 10 * 1024 * 1024:
+            raise forms.ValidationError('A foto não pode ultrapassar 10 MB.')
+        ext = foto.name.rsplit('.', 1)[-1].lower() if '.' in foto.name else ''
+        if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp'):
+            raise forms.ValidationError('Formato inválido. Use JPG, PNG, GIF ou WebP.')
+    return foto
+
+
+# Perfis que podem trocar o próprio setor em "Meu Perfil". Para os demais, o
+# setor define a abrangência de acesso (ex.: qual departamento a chefia
+# homologa) e só pode ser alterado pela gestão.
+PERFIS_SETOR_AUTOATENDIMENTO = ('respondente', '')
+
+
+def setores_autoatendimento_qs():
+    """Setores que um respondente pode escolher para si mesmo."""
+    tipos = [t for t, perfis in PERFIL_POR_TIPO_SETOR.items() if 'respondente' in perfis]
+    return _setor_qs().filter(tipo__in=tipos)
+
+
+class MeuPerfilForm(forms.ModelForm):
+    """Formulário do próprio usuário ("Meu Perfil").
+
+    Não expõe perfil de acesso, nome de usuário nem senha: esses dados são
+    alterados pela gestão (a senha, pela tela própria, que exige a atual).
+    """
+    nome_completo = forms.CharField(
+        max_length=255, label='Nome Completo',
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    matricula = forms.CharField(
+        max_length=20, required=False, label='Matrícula',
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    foto = forms.FileField(
+        required=False, label='Foto do Usuário',
+        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/*', 'id': 'input-foto'}),
+        help_text='JPG, PNG ou GIF · Máximo 10 MB'
+    )
+    setor = forms.ModelChoiceField(
+        queryset=None, label='Setor do Servidor',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    email2 = forms.EmailField(
+        widget=forms.EmailInput(attrs={'class': 'form-control'}),
+        required=False, label='Confirmar e-mail',
     )
 
     class Meta:
-        model = PerfilUsuario
-        fields = ['nome_completo', 'matricula', 'setor']
-        widgets = {
-            'nome_completo': forms.TextInput(attrs={'class': 'form-control'}),
-            'matricula': forms.TextInput(attrs={'class': 'form-control'}),
-            'setor': forms.Select(attrs={'class': 'form-select'}),
-        }
+        model = User
+        fields = ['email']
+        widgets = {'email': forms.EmailInput(attrs={'class': 'form-control'})}
+        labels = {'email': 'E-mail'}
 
     def __init__(self, *args, **kwargs):
-        self._usuario = kwargs.pop('usuario', None)
+        self._perfil = kwargs.pop('perfil', None)
         super().__init__(*args, **kwargs)
-        self.fields['setor'].queryset = _setor_qs()
-        if self._usuario:
-            self.fields['email'].initial = self._usuario.email
+        self.fields['email'].required = True
+        self.pode_alterar_setor = (
+            self._perfil is None
+            or self._perfil.perfil_tipo in PERFIS_SETOR_AUTOATENDIMENTO
+        )
+        if self.pode_alterar_setor:
+            self.fields['setor'].queryset = setores_autoatendimento_qs()
+        else:
+            del self.fields['setor']
+        if self._perfil:
+            self.fields['nome_completo'].initial = self._perfil.nome_completo
+            self.fields['matricula'].initial = self._perfil.matricula
+            if self.pode_alterar_setor:
+                self.fields['setor'].initial = self._perfil.setor
+
+    def clean_foto(self):
+        return _validar_foto(self.cleaned_data.get('foto'))
+
+    def clean(self):
+        cleaned = super().clean()
+        email = (cleaned.get('email') or '').strip()
+        email2 = (cleaned.get('email2') or '').strip()
+        if email and email2 and email.lower() != email2.lower():
+            self.add_error('email2', 'Os endereços de e-mail não coincidem.')
+        return cleaned
 
     def save(self, commit=True):
-        perfil = super().save(commit=False)
+        user = super().save(commit=False)
         if commit:
+            user.save(update_fields=['email'])
+            perfil, _ = PerfilUsuario.objects.get_or_create(usuario=user)
+            perfil.nome_completo = self.cleaned_data['nome_completo']
+            perfil.matricula = self.cleaned_data.get('matricula', '')
+            if self.pode_alterar_setor:
+                perfil.setor = self.cleaned_data['setor']
+            foto = self.cleaned_data.get('foto')
+            if foto:
+                perfil.foto = foto
             perfil.save()
-            if self._usuario and 'email' in self.cleaned_data:
-                self._usuario.email = self.cleaned_data['email']
-                self._usuario.save(update_fields=['email'])
-        return perfil
+        return user
 
 
 class UsuarioForm(forms.ModelForm):
@@ -237,14 +305,7 @@ class UsuarioForm(forms.ModelForm):
             self.fields['perfil_tipo'].initial = self._perfil.perfil_tipo
 
     def clean_foto(self):
-        foto = self.cleaned_data.get('foto')
-        if foto and hasattr(foto, 'size'):
-            if foto.size > 10 * 1024 * 1024:
-                raise forms.ValidationError('A foto não pode ultrapassar 10 MB.')
-            ext = foto.name.rsplit('.', 1)[-1].lower() if '.' in foto.name else ''
-            if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp'):
-                raise forms.ValidationError('Formato inválido. Use JPG, PNG, GIF ou WebP.')
-        return foto
+        return _validar_foto(self.cleaned_data.get('foto'))
 
     def clean_senha(self):
         # A senha não é mais obrigatória para novos usuários (definida via link de e-mail)
