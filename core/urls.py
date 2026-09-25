@@ -51,6 +51,7 @@ urlpatterns = [
     path('gestao/irps/<int:irp_pk>/itens/', views.gestao_item_list, name='gestao_item_list'),
     path('gestao/irps/<int:irp_pk>/itens/criar/', views.gestao_item_create, name='gestao_item_create'),
     path('gestao/irps/<int:irp_pk>/itens/apagar-lote/', views.gestao_item_apagar_lote, name='gestao_item_apagar_lote'),
+    path('gestao/irps/<int:irp_pk>/itens/rubrica-lote/', views.gestao_item_rubrica_lote, name='gestao_item_rubrica_lote'),
     path('gestao/irps/<int:irp_pk>/itens/importar/', views.gestao_item_importar, name='gestao_item_importar'),
     path('gestao/irps/<int:irp_pk>/itens/importar/modelo/', views.gestao_item_template_xlsx, name='gestao_item_template_xlsx'),
     path('gestao/itens/<int:pk>/editar/', views.gestao_item_edit, name='gestao_item_edit'),

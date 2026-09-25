@@ -134,6 +134,13 @@
     <input type="text" id="busca-item" class="form-control border-start-0 ps-0"
            placeholder="Filtrar itens por descrição...">
   </div>
+  {% if rubricas_presentes %}
+  <select id="filtro-rubrica" class="form-select form-select-sm" style="max-width:190px">
+    <option value="">Todos os tipos</option>
+    {% for r in rubricas_presentes %}<option value="{{ r }}">Somente {{ r|lower }}</option>{% endfor %}
+    <option value="-">Sem classificação</option>
+  </select>
+  {% endif %}
   <span class="text-muted small" id="contador-filtro"></span>
   <span class="legenda-status text-muted ms-auto">
     <i class="bi bi-check-circle-fill status-ok"></i> quantidade e justificativa
@@ -150,6 +157,7 @@
         <tr>
           <th style="width:44px">Nº</th>
           <th class="text-start">Descrição</th>
+          {% if rubricas_presentes %}<th style="width:86px" class="text-center">Tipo</th>{% endif %}
           <th style="width:70px" class="text-center">Unid.</th>
           <th style="width:110px" class="text-end">Preço Ref.</th>
           <th style="width:100px" class="text-center">Quantidade</th>
@@ -160,11 +168,21 @@
       </thead>
       <tbody id="tabela-body">
         {% for entry in itens_dados %}
-        <tr class="item-row" data-descricao="{{ entry.item.descricao|lower }}">
+        {% with rubrica=entry.item.rubrica|rubrica_curta %}
+        <tr class="item-row" data-descricao="{{ entry.item.descricao|lower }}" data-rubrica="{{ rubrica }}">
           <td class="text-center fw-semibold text-muted">{{ entry.item.numero }}</td>
           <td>
             <span class="small">{{ entry.item.descricao }}</span>
           </td>
+          {% if rubricas_presentes %}
+          <td class="text-center">
+            {% if rubrica %}
+              <span class="badge-rubrica rubrica-{{ rubrica|slugify }}" title="{{ entry.item.rubrica }}">{{ rubrica }}</span>
+            {% else %}
+              <span class="text-muted" title="Item sem classificação">—</span>
+            {% endif %}
+          </td>
+          {% endif %}
           <td class="text-center small">{{ entry.item.unidade }}</td>
           <td class="text-end small">{{ entry.item.preco_estimado|brl }}</td>
           <td class="text-center">
@@ -176,6 +194,7 @@
                    min="0" step="1"
                    data-price="{{ entry.item.preco_estimado }}"
                    data-item="{{ entry.item.pk }}"
+                   data-rubrica="{{ rubrica }}"
                    {% if not pode_editar %}disabled{% endif %}
                    placeholder="0">
           </td>
@@ -205,6 +224,7 @@
             {% endif %}
           </td>
         </tr>
+        {% endwith %}
         {% empty %}
         <tr>
           <td colspan="8" class="text-center text-muted py-5">
@@ -246,6 +266,9 @@
         <span class="text-muted small">Valor total:</span>
         <strong id="total-valor" class="ms-1 text-primary">R$ 0,00</strong>
       </div>
+      {% if rubricas_presentes %}
+      <div class="small text-muted" id="totais-rubrica"></div>
+      {% endif %}
       {% if pode_editar %}
       <a href="#" id="link-pendentes" class="small fw-semibold text-danger text-decoration-none d-none"
          title="Ir para o primeiro item sem justificativa">
@@ -294,6 +317,9 @@
             <div class="text-muted small mt-1">Valor Intencionado</div>
           </div>
         </div>
+        {% if rubricas_presentes %}
+        <div class="small mb-3" id="modal-totais-rubrica"></div>
+        {% endif %}
         <p class="small text-muted mb-0">
           <i class="bi bi-info-circle me-1"></i>
           Ao confirmar, sua resposta será registrada e você retornará à lista de IRPs.
@@ -326,17 +352,37 @@ function formatBRL(valor) {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+const SEM_RUBRICA = 'Sem classificação';
+
 function calcularTotais() {
   let totalItens = 0, totalCentavos = 0;
+  const centavosPorRubrica = {};
   document.querySelectorAll('.qtd-input').forEach(input => {
     const qtd = parseFloat(input.value) || 0;
     if (qtd > 0) {
       totalItens++;
       // Acumula em centavos para evitar erros de ponto flutuante
-      totalCentavos += Math.round(qtd * (precos[input.dataset.item] || 0) * 100);
+      const centavos = Math.round(qtd * (precos[input.dataset.item] || 0) * 100);
+      totalCentavos += centavos;
+      const rubrica = input.dataset.rubrica || SEM_RUBRICA;
+      centavosPorRubrica[rubrica] = (centavosPorRubrica[rubrica] || 0) + centavos;
     }
   });
-  return { totalItens, totalValor: totalCentavos / 100 };
+  return { totalItens, totalValor: totalCentavos / 100, centavosPorRubrica };
+}
+
+// "Consumo: R$ X · Permanente: R$ Y" (itens sem classificação por último)
+function preencherTotaisRubrica(el, centavosPorRubrica) {
+  if (!el) return;
+  el.replaceChildren();
+  Object.entries(centavosPorRubrica)
+    .sort(([a], [b]) => (a === SEM_RUBRICA) - (b === SEM_RUBRICA) || a.localeCompare(b))
+    .forEach(([rubrica, centavos], i) => {
+      if (i) el.append(' · ');
+      const valor = document.createElement('strong');
+      valor.textContent = formatBRL(centavos / 100);
+      el.append(`${rubrica}: `, valor);
+    });
 }
 
 // Status da linha: verde só com quantidade E justificativa; laranja com apenas uma
@@ -405,9 +451,10 @@ function atualizarTotais() {
     atualizarStatus(id);
   });
   atualizarPendentes();
-  const { totalItens, totalValor } = calcularTotais();
+  const { totalItens, totalValor, centavosPorRubrica } = calcularTotais();
   document.getElementById('total-itens').textContent = totalItens;
   document.getElementById('total-valor').textContent = formatBRL(totalValor);
+  preencherTotaisRubrica(document.getElementById('totais-rubrica'), centavosPorRubrica);
 }
 
 function validarFormulario() {
@@ -431,9 +478,10 @@ function validarFormulario() {
 document.getElementById('btn-salvar')?.addEventListener('click', function (e) {
   e.preventDefault();
   if (!validarFormulario()) return;
-  const { totalItens, totalValor } = calcularTotais();
+  const { totalItens, totalValor, centavosPorRubrica } = calcularTotais();
   document.getElementById('modal-total-itens').textContent = totalItens;
   document.getElementById('modal-total-valor').textContent = formatBRL(totalValor);
+  preencherTotaisRubrica(document.getElementById('modal-totais-rubrica'), centavosPorRubrica);
   new bootstrap.Modal(document.getElementById('modalConfirmar')).show();
 });
 
@@ -472,26 +520,32 @@ document.querySelectorAll('.qtd-input').forEach(input => {
   input.addEventListener('input', atualizarTotais);
 });
 
-// Filtro por descrição
-const buscaInput = document.getElementById('busca-item');
+// Filtros por descrição e por rubrica ('-' = sem classificação)
+const buscaInput    = document.getElementById('busca-item');
+const filtroRubrica = document.getElementById('filtro-rubrica');
 
 function aplicarFiltros() {
-  const termo = buscaInput ? buscaInput.value.toLowerCase().trim() : '';
+  const termo   = buscaInput ? buscaInput.value.toLowerCase().trim() : '';
+  const rubrica = filtroRubrica ? filtroRubrica.value : '';
   let visiveis = 0;
   document.querySelectorAll('.item-row').forEach(tr => {
-    const mostrar = !termo || tr.dataset.descricao.includes(termo);
+    const passaTermo   = !termo || tr.dataset.descricao.includes(termo);
+    const passaRubrica = !rubrica || (rubrica === '-' ? !tr.dataset.rubrica : tr.dataset.rubrica === rubrica);
+    const mostrar = passaTermo && passaRubrica;
     tr.style.display = mostrar ? '' : 'none';
     if (mostrar) visiveis++;
   });
   const contador = document.getElementById('contador-filtro');
-  if (contador) contador.textContent = termo ? `${visiveis} item(ns) encontrado(s)` : '';
+  if (contador) contador.textContent = (termo || rubrica) ? `${visiveis} item(ns) encontrado(s)` : '';
 }
 
 function limparFiltros() {
   if (buscaInput) buscaInput.value = '';
+  if (filtroRubrica) filtroRubrica.value = '';
   aplicarFiltros();
 }
 
 buscaInput?.addEventListener('input', aplicarFiltros);
+filtroRubrica?.addEventListener('change', aplicarFiltros);
 </script>
 {% endblock %}

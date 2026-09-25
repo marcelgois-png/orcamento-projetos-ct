@@ -61,6 +61,37 @@
   <div id="lote-inputs"></div>
 </form>
 
+<!-- Modal: definir rubrica dos itens selecionados -->
+<div class="modal fade" id="modalRubrica" tabindex="-1" aria-labelledby="modalRubricaLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" id="form-rubrica" method="post"
+          action="{% url 'gestao_item_rubrica_lote' irp.pk %}" style="font-family:'Open Sans',sans-serif">
+      {% csrf_token %}
+      <div id="rubrica-inputs"></div>
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold" id="modalRubricaLabel">
+          <i class="bi bi-tags me-2 text-primary"></i>Definir rubrica
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-2">
+          Aplicar a <strong id="rubrica-qtd-sel">0</strong> item(ns) selecionado(s).
+          A rubrica aparece para o respondente como <em>Consumo</em> ou <em>Permanente</em>.
+        </p>
+        <select name="rubrica" class="form-select">
+          {% for r in rubricas %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+          <option value="">— Remover rubrica —</option>
+        </select>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary btn-sm fw-semibold px-4">Aplicar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Breadcrumb mínimo -->
 <nav aria-label="breadcrumb" class="mb-2">
   <ol class="breadcrumb small mb-0" style="font-family:'Open Sans',sans-serif">
@@ -87,7 +118,7 @@
     </p>
   </div>
   <div class="d-flex gap-2 flex-wrap align-items-center">
-    {% if irp.fase_atual != 'encerrada' %}
+    {% if not somente_rubrica %}
     <a href="{% url 'gestao_item_create' irp.pk %}" class="btn btn-primary btn-sm fw-semibold">
       <i class="bi bi-plus-lg me-1"></i> Adicionar Item
     </a>
@@ -100,6 +131,11 @@
       <i class="bi bi-upload me-1"></i> Importar
     </a>
     {% endif %}
+    <button type="button" id="btn-rubrica-lote"
+            class="btn btn-outline-primary btn-sm fw-semibold" disabled
+            onclick="abrirModalRubrica()">
+      <i class="bi bi-tags me-1"></i> Definir Rubrica
+    </button>
     <a href="{% url 'gestao_resultados' irp.pk %}" class="btn btn-success btn-sm fw-semibold">
       <i class="bi bi-bar-chart-fill me-1"></i> Resultados
     </a>
@@ -108,6 +144,14 @@
     </a>
   </div>
 </div>
+
+{% if somente_rubrica %}
+<div class="alert alert-info border-0 py-2 small mb-3" style="font-family:'Open Sans',sans-serif">
+  <i class="bi bi-info-circle me-1"></i>
+  A IRP está em fluxo: os itens não podem ser alterados, exceto a <strong>rubrica</strong>.
+  Para editar, adicionar ou excluir itens, interrompa a IRP.
+</div>
+{% endif %}
 
 <!-- Filtros -->
 <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
@@ -119,6 +163,12 @@
            class="form-control border-start-0 ps-0"
            placeholder="Filtrar por descrição ou unidade...">
   </div>
+  <select id="filtro-rubrica" class="form-select form-select-sm" style="max-width:220px">
+    <option value="">Todas as rubricas</option>
+    <option value="-">Sem rubrica ({{ total_sem_rubrica }})</option>
+    {% regroup itens|dictsort:"rubrica" by rubrica as grupos_rubrica %}
+    {% for g in grupos_rubrica %}{% if g.grouper %}<option value="{{ g.grouper }}">{{ g.grouper }}</option>{% endif %}{% endfor %}
+  </select>
   <button type="button" id="btn-limpar-filtros"
           class="btn btn-sm btn-outline-secondary d-none"
           style="font-family:'Open Sans',sans-serif"
@@ -140,8 +190,9 @@
           <th class="sortable text-center" data-col="0" style="width:52px">N&ordm;</th>
           <th class="sortable text-start" data-col="1">Descri&ccedil;&atilde;o do Material</th>
           <th class="sortable text-center" data-col="2" style="width:70px">Unid.</th>
-          <th class="sortable text-center" data-col="3" style="width:140px">Valor de Refer&ecirc;ncia</th>
-          <th class="sortable text-center" data-col="4" style="width:95px">Situa&ccedil;&atilde;o</th>
+          <th class="sortable text-center" data-col="3" style="width:96px">Rubrica</th>
+          <th class="sortable text-center" data-col="4" style="width:140px">Valor de Refer&ecirc;ncia</th>
+          <th class="sortable text-center" data-col="5" style="width:95px">Situa&ccedil;&atilde;o</th>
           <th style="width:90px" class="text-center">A&ccedil;&otilde;es</th>
         </tr>
       </thead>
@@ -149,6 +200,7 @@
         {% for item in itens %}
         <tr class="item-row {% if not item.ativo %}item-inativo{% endif %}"
             data-busca="{{ item.descricao|lower }} {{ item.codigo_catmat|lower }} {{ item.numero_dfd|lower }}"
+            data-rubrica="{{ item.rubrica }}"
             data-situacao="{% if item.ativo %}ativo{% else %}inativo{% endif %}">
 
           <td class="text-center">
@@ -169,6 +221,16 @@
             {{ item.unidade }}
           </td>
 
+          <td class="text-center" data-sort="{{ item.rubrica|lower|default:'~' }}">
+            {% with curta=item.rubrica|rubrica_curta %}
+            {% if curta %}
+              <span class="badge-rubrica rubrica-{{ curta|slugify }}" title="{{ item.rubrica }}">{{ curta }}</span>
+            {% else %}
+              <span class="text-muted" title="Sem rubrica">—</span>
+            {% endif %}
+            {% endwith %}
+          </td>
+
           <td class="text-center col-valor" data-sort="{{ item.preco_estimado }}">
             {{ item.preco_estimado|brl }}
           </td>
@@ -183,7 +245,7 @@
 
           <td class="text-center">
             <div class="d-flex gap-1 justify-content-center">
-              {% if irp.fase_atual != 'encerrada' %}
+              {% if not somente_rubrica %}
               <a href="{% url 'gestao_item_edit' item.pk %}"
                  class="acao-btn acao-btn-edit" title="Editar item">
                 <i class="bi bi-pencil-square"></i>
@@ -211,7 +273,7 @@
                 <i class="bi bi-trash3-fill"></i>
               </button>
               {% else %}
-              <span class="text-muted" style="font-size:.75rem;opacity:.45" title="IRP encerrada">
+              <span class="text-muted" style="font-size:.75rem;opacity:.45" title="IRP em fluxo: item bloqueado">
                 <i class="bi bi-lock"></i>
               </span>
               {% endif %}
@@ -220,10 +282,10 @@
         </tr>
         {% empty %}
         <tr id="linha-vazia">
-          <td colspan="7" class="text-center text-muted py-5" style="font-family:'Open Sans',sans-serif">
+          <td colspan="8" class="text-center text-muted py-5" style="font-family:'Open Sans',sans-serif">
             <i class="bi bi-inbox fs-2 d-block mb-2 opacity-25"></i>
             Nenhum item cadastrado ainda.
-            {% if irp.fase_atual != 'encerrada' %}
+            {% if not somente_rubrica %}
             <br>
             <a href="{% url 'gestao_item_create' irp.pk %}" class="btn btn-primary btn-sm mt-3">
               <i class="bi bi-plus-lg me-1"></i> Adicionar Item
@@ -241,8 +303,13 @@
   </div>
 
   <div class="card-footer bg-white border-top d-flex justify-content-between align-items-center py-2" style="font-size: 0.75rem; font-family:'Open Sans',sans-serif">
-    <span id="contador-rodape">
-      Total: <strong>{{ itens.count }}</strong> item(ns)
+    <span>
+      <span id="contador-rodape">Total: <strong>{{ itens.count }}</strong> item(ns)</span>
+      {% if total_sem_rubrica %}
+      <span class="text-warning-emphasis ms-2">
+        <i class="bi bi-exclamation-triangle me-1"></i>{{ total_sem_rubrica }} sem rubrica
+      </span>
+      {% endif %}
     </span>
     <span id="contador-selecionados" class="text-primary fw-semibold" style="display:none"></span>
   </div>
@@ -255,21 +322,24 @@
 const TOTAL_GERAL = {{ itens.count }};
 
 // Filtros
-const inputBusca = document.getElementById('busca-item');
-const btnLimpar  = document.getElementById('btn-limpar-filtros');
+const inputBusca    = document.getElementById('busca-item');
+const filtroRubrica = document.getElementById('filtro-rubrica');
+const btnLimpar     = document.getElementById('btn-limpar-filtros');
 
 function aplicarFiltros() {
-  const termo = inputBusca.value.toLowerCase().trim();
+  const termo   = inputBusca.value.toLowerCase().trim();
+  const rubrica = filtroRubrica.value;  // '-' = sem rubrica
   let visiveis = 0;
 
   document.querySelectorAll('.item-row').forEach(tr => {
-    const passa = !termo || tr.dataset.busca.includes(termo);
+    const passaRubrica = !rubrica || (rubrica === '-' ? !tr.dataset.rubrica : tr.dataset.rubrica === rubrica);
+    const passa = (!termo || tr.dataset.busca.includes(termo)) && passaRubrica;
     tr.style.display = passa ? '' : 'none';
     if (passa) visiveis++;
   });
 
   const rodape = document.getElementById('contador-rodape');
-  if (termo) {
+  if (termo || rubrica) {
     rodape.innerHTML = `Exibindo <strong>${visiveis}</strong> de <strong>${TOTAL_GERAL}</strong> item(ns)`;
     btnLimpar.classList.remove('d-none');
   } else {
@@ -280,20 +350,24 @@ function aplicarFiltros() {
 
 function limparFiltros() {
   inputBusca.value = '';
+  filtroRubrica.value = '';
   aplicarFiltros();
 }
 
 inputBusca.addEventListener('input', aplicarFiltros);
+filtroRubrica.addEventListener('change', aplicarFiltros);
 
 // Seleção em lote
-const chkTodos  = document.getElementById('chk-todos');
-const btnApagar = document.getElementById('btn-apagar-lote');
-const cntSel    = document.getElementById('contador-selecionados');
+const chkTodos   = document.getElementById('chk-todos');
+const btnApagar  = document.getElementById('btn-apagar-lote');  // ausente com a IRP em fluxo
+const btnRubrica = document.getElementById('btn-rubrica-lote');
+const cntSel     = document.getElementById('contador-selecionados');
 
 function atualizarLote() {
   const sel   = document.querySelectorAll('.chk-item:checked');
   const total = document.querySelectorAll('.chk-item').length;
-  btnApagar.disabled     = sel.length === 0;
+  if (btnApagar) btnApagar.disabled = sel.length === 0;
+  btnRubrica.disabled    = sel.length === 0;
   cntSel.textContent     = sel.length > 0 ? sel.length + ' selecionado(s)' : '';
   cntSel.style.display   = sel.length > 0 ? '' : 'none';
   chkTodos.indeterminate = sel.length > 0 && sel.length < total;
@@ -322,6 +396,20 @@ function submeterLote() {
     container.appendChild(inp);
   });
   document.getElementById('form-lote').submit();
+}
+
+function abrirModalRubrica() {
+  const selecionados = document.querySelectorAll('.chk-item:checked');
+  if (!selecionados.length) return;
+  const container = document.getElementById('rubrica-inputs');
+  container.innerHTML = '';
+  selecionados.forEach(c => {
+    const inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = 'item_ids'; inp.value = c.value;
+    container.appendChild(inp);
+  });
+  document.getElementById('rubrica-qtd-sel').textContent = selecionados.length;
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalRubrica')).show();
 }
 
 // Ordenação de colunas

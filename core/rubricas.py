@@ -30,6 +30,19 @@ def rubrica_choices(include_blank=True):
     return choices
 
 
+def rubrica_curta(value):
+    """Rótulo curto para exibir ao respondente: 'Consumo', 'Permanente' ou o nome da rubrica."""
+    raw = str(value or '').strip()
+    if not raw:
+        return ''
+    chave = _norm(raw)
+    if 'consumo' in chave:
+        return 'Consumo'
+    if 'permanente' in chave:
+        return 'Permanente'
+    return raw.split(' - ', 1)[-1]
+
+
 def _catalog_lookup():
     lookup = {}
     for label in rubrica_catalog_labels():

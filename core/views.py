@@ -24,7 +24,7 @@ from .forms import (IRPForm, ItemForm, ItemImportForm, MeuPerfilForm,
 from .models import (IRP, Item, PerfilUsuario, Resposta, RespostaItem, Setor,
                       HomologacaoSetor, HomologacaoSetorItem,
                       Pregao, PregaoItem, PERFIL_POR_TIPO_SETOR, TIPO_SETOR_CHOICES)
-from .rubricas import rubrica_catalog_labels, rubrica_normalizada
+from .rubricas import rubrica_catalog_labels, rubrica_curta, rubrica_normalizada
 
 
 # ---------------------------------------------------------------------------
@@ -426,6 +426,8 @@ def irp_responder(request, pk):
         'ja_respondeu': ja_respondeu,
         'lot_pai': lot_pai,
         'lot_sub': lot_sub,
+        # Rubricas (consumo/permanente) presentes nos itens — vazio se nenhum item foi classificado
+        'rubricas_presentes': sorted({rubrica_curta(i.rubrica) for i in itens if i.rubrica}),
     }
     return render(request, 'core/irp_responder.html', context)
 
@@ -1561,13 +1563,35 @@ def gestao_irp_delete(request, pk):
 @gestor_required
 def gestao_item_list(request, irp_pk):
     irp = get_object_or_404(IRP, pk=irp_pk)
-    if irp.liberada:
-        messages.error(request, f'A IRP "{irp.titulo}" está em fluxo. Interrompa-a para gerenciar os itens.')
-        return redirect('gestao_irp_list')
     itens = irp.itens.all()
     return render(request, 'core/gestao/item_list.html', {
         'irp': irp, 'itens': itens,
+        # IRP em fluxo: itens bloqueados, exceto a rubrica (classificação), que
+        # não altera quantidades nem valores das respostas
+        'somente_rubrica': irp.liberada,
+        # Rubricas de material (consumo, permanente) primeiro
+        'rubricas': sorted(rubrica_catalog_labels(),
+                           key=lambda r: {'Consumo': 0, 'Permanente': 1}.get(rubrica_curta(r), 2)),
+        'total_sem_rubrica': sum(1 for i in itens if not i.rubrica),
     })
+
+
+@gestor_required
+def gestao_item_rubrica_lote(request, irp_pk):
+    """Define (ou remove) a rubrica dos itens selecionados, inclusive com a IRP em fluxo."""
+    irp = get_object_or_404(IRP, pk=irp_pk)
+    if request.method == 'POST':
+        rubrica = request.POST.get('rubrica', '').strip()
+        ids = [i for i in request.POST.getlist('item_ids') if i.isdigit()]
+        if rubrica and rubrica not in rubrica_catalog_labels():
+            messages.error(request, 'Rubrica inválida.')
+        elif ids:
+            n = irp.itens.filter(pk__in=ids).update(rubrica=rubrica)
+            if rubrica:
+                messages.success(request, f'Rubrica "{rubrica}" definida para {n} item(ns).')
+            else:
+                messages.success(request, f'Rubrica removida de {n} item(ns).')
+    return redirect('gestao_item_list', irp_pk=irp.pk)
 
 
 @gestor_required

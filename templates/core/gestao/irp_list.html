@@ -162,17 +162,11 @@
               {% endif %}
 
               <!-- [2] Gerenciar Itens -->
-              {% if irp.liberada %}
-              <span data-bs-toggle="tooltip" data-bs-custom-class="tooltip-danger"
-                    data-bs-title="A IRP está em fluxo. Interrompa-a para gerenciar os itens"
-                    style="display:inline-flex">
-                <span class="irp-acao irp-acao-disabled"><i class="bi bi-list-ul"></i></span>
-              </span>
-              {% else %}
-              <a href="{% url 'gestao_item_list' irp.pk %}" class="irp-acao irp-acao-itens" title="Gerenciar Itens">
+              {# IRP em fluxo: a lista abre só para classificar a rubrica dos itens #}
+              <a href="{% url 'gestao_item_list' irp.pk %}" class="irp-acao irp-acao-itens"
+                 title="{% if irp.liberada %}Itens (IRP em fluxo: apenas a rubrica pode ser alterada){% else %}Gerenciar Itens{% endif %}">
                 <i class="bi bi-list-ul"></i>
               </a>
-              {% endif %}
 
               <!-- [3] Resultados -->
               {% if not irp.liberada and irp.itens_ativos == 0 %}

@@ -1,6 +1,14 @@
 from django import template
 
+from core.rubricas import rubrica_curta as _rubrica_curta
+
 register = template.Library()
+
+
+@register.filter
+def rubrica_curta(value):
+    """'339030 - Material de Consumo' → 'Consumo'; '449052 - Material Permanente' → 'Permanente'."""
+    return _rubrica_curta(value)
 
 
 @register.filter
