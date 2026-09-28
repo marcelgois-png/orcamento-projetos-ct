@@ -249,13 +249,10 @@ class UsuarioForm(forms.ModelForm):
     setores_adicionais = forms.ModelMultipleChoiceField(
         queryset=None, required=False, label='Setores adicionais',
     )
+    # Todos os perfis são escolhas válidas; o que cada tela pode atribuir é
+    # restringido em clean() pela compatibilidade perfil × tipo de setor.
     perfil_tipo = forms.ChoiceField(
-        choices=[('', '— Selecione o perfil —')] + [
-            ('admin',           'Administrador do Sistema'),
-            ('gestor_irp',      'Gestor de IRP'),
-            ('aprovador_setor', 'Aprovador de Setor Raiz'),
-            ('respondente',     'Respondente'),
-        ],
+        choices=[('', '— Selecione o perfil —')] + PERFIL_TIPO_CHOICES,
         label='Perfil de Acesso',
         widget=forms.Select(attrs={'class': 'form-select'}),
     )
@@ -295,6 +292,9 @@ class UsuarioForm(forms.ModelForm):
         # Só as telas de gestão do módulo IRP exibem os setores adicionais; nas
         # demais o campo é removido para que salvar não apague os já definidos.
         com_setores_adicionais = kwargs.pop('com_setores_adicionais', False)
+        # Perfis permitidos por tipo de setor. O módulo Orçamento passa um mapa
+        # que inclui também os perfis financeiros.
+        self._perfil_por_tipo = kwargs.pop('perfil_por_tipo', PERFIL_POR_TIPO_SETOR)
         super().__init__(*args, **kwargs)
         self.fields['setor'].queryset = _setor_qs()
         if com_setores_adicionais:
@@ -358,7 +358,7 @@ class UsuarioForm(forms.ModelForm):
         setor = cleaned.get('setor')
         perfil_tipo = cleaned.get('perfil_tipo')
         if setor and perfil_tipo:
-            allowed = PERFIL_POR_TIPO_SETOR.get(setor.tipo, [])
+            allowed = self._perfil_por_tipo.get(setor.tipo, [])
             if perfil_tipo not in allowed:
                 perfil_label = dict(PERFIL_TIPO_CHOICES).get(perfil_tipo, perfil_tipo)
                 self.add_error(None,

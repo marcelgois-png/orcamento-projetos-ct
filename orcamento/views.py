@@ -2347,7 +2347,7 @@ def orc_usuario_create(request):
 
     todos_setores = Setor.objects.filter(ativo=True).order_by('nome')
     if request.method == 'POST':
-        form = UsuarioForm(request.POST, request.FILES)
+        form = UsuarioForm(request.POST, request.FILES, perfil_por_tipo=_PERFIL_POR_TIPO_ORC)
         if form.is_valid():
             with db_transaction.atomic():
                 user = form.save()
@@ -2376,7 +2376,7 @@ def orc_usuario_create(request):
 
             return redirect('orc_usuario_list')
     else:
-        form = UsuarioForm()
+        form = UsuarioForm(perfil_por_tipo=_PERFIL_POR_TIPO_ORC)
     return render(request, 'orcamento/admin/usuario_form.html', {
         'form': form,
         'titulo_pagina': 'Novo Usuário',
@@ -2400,13 +2400,14 @@ def orc_usuario_edit(request, pk):
 
     todos_setores = Setor.objects.filter(ativo=True).order_by('nome')
     if request.method == 'POST':
-        form = UsuarioForm(request.POST, request.FILES, instance=usuario, perfil=perfil)
+        form = UsuarioForm(request.POST, request.FILES, instance=usuario, perfil=perfil,
+                           perfil_por_tipo=_PERFIL_POR_TIPO_ORC)
         if form.is_valid():
             form.save()
             messages.success(request, 'Usuário atualizado.')
             return redirect('orc_usuario_list')
     else:
-        form = UsuarioForm(instance=usuario, perfil=perfil)
+        form = UsuarioForm(instance=usuario, perfil=perfil, perfil_por_tipo=_PERFIL_POR_TIPO_ORC)
 
     return render(request, 'orcamento/admin/usuario_form.html', {
         'form': form,
